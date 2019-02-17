@@ -1,59 +1,66 @@
 module Main where
 
-import Text.Parsec
+import           Text.Parsec
 
 newtype AtomID = AtomID String
     deriving (Show, Eq)
 
-data Pie = Type PieType
-         | Data PieData
+data Pie = Pair Pie Pie
+         | Cons Pie Pie
+         | AtomType
+         | AtomData AtomID
          deriving (Show)
 
-data PieType = PairType PieType PieType
-             | AtomType
-             deriving (Show)
-
-data PieData = ConsData PieData PieData
-             | AtomData AtomID
-             deriving (Show)
-
-mkAtom :: String -> Pie
-mkAtom s = Data (AtomData (AtomID s))
-
 type Parser a = Parsec String () a
+
+parens :: Parser a -> Parser a
+parens = between (char '(') (char ')')
+
+spaces1 :: Parser ()
+spaces1 = skipMany1 space
+
+-- Atom IDs must only contain letters and hyphens
+atomID :: Parser AtomID
+atomID = do
+  char '\''
+  id <- many (alphaNum <|> char '-')
+  pure $ AtomID id
+
+pieApp :: Parser Pie
+pieApp =
+  (   Pair
+    <$  string "Pair"
+    <*> (spaces1 >>= \_ -> pie)
+    <*> (spaces1 >>= \_ -> pie)
+    )
+    <|> (   Cons
+        <$  string "cons"
+        <*> (spaces1 >>= \_ -> pie)
+        <*> (spaces1 >>= \_ -> pie)
+        )
 
 -- | Pie type parser
 --
 -- Examples:
 --
--- >>> parse pieType "" "Atom"
+-- >>> parse pie "" "Atom"
 -- Right AtomType
-pieType :: Parser PieType
-pieType = (AtomType <$ string "Atom")
-
--- Atom IDs must only contain letters and hyphens
-atomID :: Parser AtomID
-atomID = do
-    string "'"
-    id <- many (alphaNum <|> char '-')
-    pure $ AtomID id
-
--- | Pie data parser
--- >>> parse pieData "" "'courgette"
+--
+-- >>> parse pie "" "(Pair Atom Atom)"
+-- Right (Pair AtomType AtomType)
+--
+-- >>> parse pie "" "'courgette"
 -- Right (AtomData (AtomID "courgette"))
-pieData :: Parser PieData
-pieData = (AtomData <$> atomID)
-
 pie :: Parser Pie
-pie = (Type <$> pieType) <|> (Data <$> pieData)
+pie = (AtomType <$ string "Atom") <|> (AtomData <$> atomID) <|> parens pieApp
 
 parsePie :: String -> Either ParseError Pie
 parsePie = parse pie "<lit>"
 
 parsePieOrThrow :: String -> Pie
 parsePieOrThrow s = case parsePie s of
-    Right pie -> pie
-    Left err -> error (show err)
+  Right pie -> pie
+  Left  err -> error (show err)
 
 -- | First form of judgement
 -- ______ is a ______.
@@ -64,15 +71,16 @@ parsePieOrThrow s = case parsePie s of
 -- >>> let atomType = parsePieOrThrow "Atom"
 -- >>> judgement1 courgette atomType
 -- True
+--
+-- >>> let consData = parsePieOrThrow "(cons 'courgette 'baguette)"
+-- >>> let pairType = parsePieOrThrow "(Pair Atom Atom)"
+-- >>> judgement1 consData pairType
+-- True
 judgement1 :: Pie -> Pie -> Bool
-judgement1 (Data d) (Type t) = judgement1' d t
+judgement1 (AtomData _) AtomType = True
+judgement1 (Cons d1 d2) (Pair t1 t2) =
+  judgement1 d1 t1 && judgement1 d2 t2
 judgement1 _ _ = False
-
--- After pre-supposition
-judgement1' :: PieData -> PieType -> Bool
-judgement1' (AtomData _) AtomType = True
-judgement1' (ConsData d1 d2) (PairType t1 t2) = judgement1' d1 t1 && judgement1' d2 t2
-judgement1' _ _ = False
 
 -- | Second form of judgement
 -- ______ is the same ______ as ______.
@@ -90,14 +98,10 @@ judgement1' _ _ = False
 -- >>> judgement2 courgette atomType baguette
 -- False
 judgement2 :: Pie -> Pie -> Pie -> Bool
-judgement2 (Data d1) (Type t) (Data d2) = judgement2' d1 t d2
+judgement2 (AtomData id1) AtomType (AtomData id2) = id1 == id2
+judgement2 (Cons c1 c2) (Pair p1 p2) (Cons c3 c4) =
+  judgement2 c1 p1 c3 && judgement2 c2 p2 c4
 judgement2 _ _ _ = False
-
--- After pre-supposition
-judgement2' :: PieData -> PieType -> PieData -> Bool
-judgement2' (AtomData id1) AtomType (AtomData id2) = id1 == id2
-judgement2' (ConsData c1 c2) (PairType p1 p2) (ConsData c3 c4) = judgement2' c1 p1 c3 && judgement2' c2 p2 c4
-judgement2' _ _ _ = False
 
 -- | Third form of judgement
 -- _____ is a type.
@@ -112,8 +116,9 @@ judgement2' _ _ _ = False
 -- >>> judgement3 atomType
 -- True
 judgement3 :: Pie -> Bool
-judgement3 (Type _) = True
-judgement3 (Data _) = False
+judgement3 AtomType = True
+judgement3 (Pair _ _) = True -- Not strictly true
+judgement3 _ = False
 
 -- fourth form of judgement
 -- ______ and ______ are the same type.
@@ -128,14 +133,10 @@ judgement3 (Data _) = False
 -- >>> judgement4 atomType atomType
 -- True
 judgement4 :: Pie -> Pie -> Bool
-judgement4 (Type t1) (Type t2) = judgement4' t1 t2
+judgement4 AtomType AtomType = True
+judgement4 (Pair p1 p2) (Pair p3 p4) =
+  judgement4 p1 p3 && judgement4 p2 p4
 judgement4 _ _ = False
-
--- after pre-supposition
-judgement4' :: PieType -> PieType -> Bool
-judgement4' AtomType AtomType = True
-judgement4' (PairType p1 p2) (PairType p3 p4) = judgement4' p1 p3 && judgement4' p2 p4
-judgement4' _ _ = False
 
 data TypeError
 
@@ -144,5 +145,5 @@ normalize = undefined
 
 main :: IO ()
 main = do
-    let foo = mkAtom "foo"
-    print $ judgement2 foo (Type AtomType) foo
+  let foo = parsePieOrThrow "'foo"
+  print $ judgement2 foo AtomType foo
