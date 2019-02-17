@@ -9,6 +9,8 @@ data Pie = Pair Pie Pie
          | Cons Pie Pie
          | AtomType
          | AtomData AtomID
+         | Car Pie Pie
+         | Cdr Pie Pie
          deriving (Show)
 
 type Parser a = Parsec String () a
@@ -26,18 +28,15 @@ atomID = do
   id <- many (alphaNum <|> char '-')
   pure $ AtomID id
 
-pieApp :: Parser Pie
-pieApp =
-  (   Pair
-    <$  string "Pair"
-    <*> (spaces1 >>= \_ -> pie)
-    <*> (spaces1 >>= \_ -> pie)
-    )
-    <|> (   Cons
-        <$  string "cons"
-        <*> (spaces1 >>= \_ -> pie)
-        <*> (spaces1 >>= \_ -> pie)
-        )
+mkBinaryExprs :: [Parser (Pie -> Pie -> Pie)] -> Parser Pie
+mkBinaryExprs = foldr1 (<|>) . fmap (\p -> p <*> (spaces1 >> pie) <*> (spaces1 >> pie))
+
+pieExpr :: Parser Pie
+pieExpr = mkBinaryExprs [ Pair <$ string "Pair"
+                        , Cons <$ string "cons"
+                        , Car <$ string "car"
+                        , Cdr <$ string "cdr"
+                        ]
 
 -- | Pie type parser
 --
@@ -52,7 +51,7 @@ pieApp =
 -- >>> parse pie "" "'courgette"
 -- Right (AtomData (AtomID "courgette"))
 pie :: Parser Pie
-pie = (AtomType <$ string "Atom") <|> (AtomData <$> atomID) <|> parens pieApp
+pie = (AtomType <$ string "Atom") <|> (AtomData <$> atomID) <|> parens pieExpr
 
 parsePie :: String -> Either ParseError Pie
 parsePie = parse pie "<lit>"
