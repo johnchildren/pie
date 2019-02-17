@@ -9,8 +9,8 @@ data Pie = Pair Pie Pie
          | Cons Pie Pie
          | AtomType
          | AtomData AtomID
-         | Car Pie Pie
-         | Cdr Pie Pie
+         | Car Pie
+         | Cdr Pie
          deriving (Show)
 
 type Parser a = Parsec String () a
@@ -28,17 +28,51 @@ atomID = do
   id <- many (alphaNum <|> char '-')
   pure $ AtomID id
 
-mkBinaryExprs :: [Parser (Pie -> Pie -> Pie)] -> Parser Pie
-mkBinaryExprs = foldr1 (<|>) . fmap (\p -> p <*> (spaces1 >> pie) <*> (spaces1 >> pie))
+printUnaryExpr :: String -> Pie -> String
+printUnaryExpr tok e1 = "(" ++ tok ++ " " ++ printPie e1 ++ ")"
+
+printBinaryExpr :: String -> Pie -> Pie -> String
+printBinaryExpr tok e1 e2 =
+  "(" ++ tok ++ " " ++ printPie e1 ++ " " ++ printPie e2 ++ ")"
+
+-- | Print an expression
+--
+-- Examples:
+--
+-- >>> let consData = parsePieOrThrow "(cons 'courgette 'baguette)"
+-- >>> printPie consData
+-- "(cons 'courgette 'baguette)"
+--
+-- >>> let pairType = parsePieOrThrow "(Pair Atom Atom)"
+-- >>> printPie pairType
+-- "(Pair Atom Atom)"
+printPie :: Pie -> String
+printPie AtomType              = "Atom"
+printPie (AtomData (AtomID s)) = "'" ++ s
+printPie (Cons e1 e2         ) = printBinaryExpr "cons" e1 e2
+printPie (Pair e1 e2         ) = printBinaryExpr "Pair" e1 e2
+printPie (Car e1             ) = printUnaryExpr "car" e1
+printPie (Cdr e1             ) = printUnaryExpr "cdr" e1
+
+parseUnaryExpr :: Parser (Pie -> Pie) -> Parser Pie
+parseUnaryExpr p = p <*> (spaces1 >> pie)
+
+parseBinaryExpr :: Parser (Pie -> Pie -> Pie) -> Parser Pie
+parseBinaryExpr p = p <*> (spaces1 >> pie) <*> (spaces1 >> pie)
 
 pieExpr :: Parser Pie
-pieExpr = mkBinaryExprs [ Pair <$ string "Pair"
-                        , Cons <$ string "cons"
-                        , Car <$ string "car"
-                        , Cdr <$ string "cdr"
-                        ]
+pieExpr =
+  (   parseBinaryExpr (Pair <$ string "Pair")
+  <|> (  string "c"
+      >> (   parseBinaryExpr (Cons <$ string "ons")
+         <|> parseUnaryExpr (Car <$ string "ar")
+         <|> parseUnaryExpr (Cdr <$ string "dr")
+         )
+      )
+  )
 
--- | Pie type parser
+
+-- | Parse a pie expression
 --
 -- Examples:
 --
@@ -76,10 +110,9 @@ parsePieOrThrow s = case parsePie s of
 -- >>> judgement1 consData pairType
 -- True
 judgement1 :: Pie -> Pie -> Bool
-judgement1 (AtomData _) AtomType = True
-judgement1 (Cons d1 d2) (Pair t1 t2) =
-  judgement1 d1 t1 && judgement1 d2 t2
-judgement1 _ _ = False
+judgement1 (AtomData _) AtomType     = True
+judgement1 (Cons d1 d2) (Pair t1 t2) = judgement1 d1 t1 && judgement1 d2 t2
+judgement1 _            _            = False
 
 -- | Second form of judgement
 -- ______ is the same ______ as ______.
@@ -115,9 +148,9 @@ judgement2 _ _ _ = False
 -- >>> judgement3 atomType
 -- True
 judgement3 :: Pie -> Bool
-judgement3 AtomType = True
+judgement3 AtomType   = True
 judgement3 (Pair _ _) = True -- Not strictly true
-judgement3 _ = False
+judgement3 _          = False
 
 -- fourth form of judgement
 -- ______ and ______ are the same type.
@@ -132,12 +165,32 @@ judgement3 _ = False
 -- >>> judgement4 atomType atomType
 -- True
 judgement4 :: Pie -> Pie -> Bool
-judgement4 AtomType AtomType = True
-judgement4 (Pair p1 p2) (Pair p3 p4) =
-  judgement4 p1 p3 && judgement4 p2 p4
-judgement4 _ _ = False
+judgement4 AtomType     AtomType     = True
+judgement4 (Pair p1 p2) (Pair p3 p4) = judgement4 p1 p3 && judgement4 p2 p4
+judgement4 _            _            = False
 
-data TypeError
+data TypeError = TypeError
+  deriving (Show)
+
+-- | Evaluate an expression
+--
+-- Examples:
+--
+-- >>> let expr = parsePieOrThrow "(car (cons (cons 'aubergine 'courgette) 'tomato))"
+-- >>> printPie <$> eval expr
+-- Right "(cons 'aubergine 'courgette)"
+eval :: Pie -> Either TypeError Pie
+eval AtomType            = Right AtomType
+eval a@(AtomData _     ) = Right a
+eval c@(Cons _ _       ) = Right c
+eval p@(Pair _ _       ) = Right p
+eval (  Car (Cons v1 _)) = Right v1
+eval (  Car (Pair v1 _)) = Right v1
+eval (  Car _          ) = Left TypeError
+eval (  Cdr (Cons _ v2)) = Right v2
+eval (  Cdr (Pair _ v2)) = Right v2
+eval (  Cdr _          ) = Left TypeError
+
 
 normalize :: Pie -> Either TypeError Pie
 normalize = undefined
