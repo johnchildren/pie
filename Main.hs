@@ -64,7 +64,7 @@ printBinaryExpr tok e1 e2 = "(" ++ tok ++ " " ++ e1 ++ " " ++ e2 ++ ")"
 printPie :: Term Expr -> String
 printPie = cata printPie'
 
-printPie' :: Expr String -> String
+printPie' :: Algebra Expr String
 printPie' (AtomType             ) = "Atom"
 printPie' ((AtomData (AtomID s))) = "'" ++ s
 printPie' (Zero                 ) = "zero"
@@ -215,18 +215,21 @@ data TypeError = TypeError
 -- >>> printPie <$> eval expr
 -- Right "(Pair Atom Atom)"
 eval :: Term Expr -> Either TypeError (Term Expr)
-eval (In AtomType                ) = Right (In AtomType)
-eval (In a@(AtomData _          )) = Right (In a)
-eval (In (Cons e1 e2)) = (\x y -> In (Cons x y)) <$> (eval e1) <*> (eval e2)
-eval (In (Pair e1 e2)) = (\x y -> In (Pair x y)) <$> (eval e1) <*> (eval e2)
-eval (In (  Car (In (Cons v1 _)))) = Right v1
-eval (In (  Car (In (Pair v1 _)))) = Right v1
-eval (In (  Car _               )) = Left TypeError
-eval (In (  Cdr (In (Cons _ v2)))) = Right v2
-eval (In (  Cdr (In (Pair _ v2)))) = Right v2
-eval (In (  Cdr _               )) = Left TypeError
-eval (In Zero                    ) = Right (In Zero)
-eval (In (Add1 e1)               ) = (\x -> In (Add1 x)) <$> eval e1
+eval = cata eval'
+
+eval' :: Algebra Expr (Either TypeError (Term Expr))
+eval' AtomType                       = Right (In AtomType)
+eval' (AtomData atomID             ) = Right (In (AtomData atomID))
+eval' (Cons e1 e2                  ) = (\x y -> In (Cons x y)) <$> e1 <*> e2
+eval' (Pair e1 e2                  ) = (\x y -> In (Pair x y)) <$> e1 <*> e2
+eval' (Car (Right (In (Cons v1 _)))) = Right v1
+eval' (Car (Right (In (Pair v1 _)))) = Right v1
+eval' (Car _                       ) = Left TypeError
+eval' (Cdr (Right (In (Cons _ v2)))) = Right v2
+eval' (Cdr (Right (In (Pair _ v2)))) = Right v2
+eval' (Cdr _                       ) = Left TypeError
+eval' Zero                           = Right (In Zero)
+eval' (Add1 e1)                      = (\x -> In (Add1 x)) <$> e1
 
 main :: IO ()
 main = do
