@@ -4,6 +4,12 @@ module Language.Pie.Eval
   )
 where
 
+import           Language.Pie.Expr              ( AtomID(..)
+                                                , VarName(..)
+                                                , Expr(..)
+                                                )
+import           Language.Pie.Utils.Recursion   ( Term(..), Algebra, cata )
+
 data TypeError = TypeError
   deriving (Show)
 

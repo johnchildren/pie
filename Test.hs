@@ -1,19 +1,29 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import           Hedgehog
+import qualified Hedgehog                      as Hedge
 import qualified Hedgehog.Gen                  as Gen
 
-genName :: MonadGen m => m String
+import           Language.Pie.Expr              ( AtomID(..)
+                                                , VarName(..)
+                                                , Expr(..)
+                                                )
+import           Language.Pie.Utils.Recursion   ( Term(..)
+                                                , Algebra
+                                                , cata
+                                                )
 
-genPieExpr :: MonadGen m => m Expr
+genName :: Hedge.MonadGen m => m String
+genName = undefined
+
+genPieExpr :: Hedge.MonadGen m => m (Term Expr)
 genPieExpr = Gen.recursive
   Gen.choice
-  [Var <$> genName]
-  [ Gen.subtermM genExpr (x -> Lam <$> genName <*> pure x)
+  [Hedge.Var <$> genName]
+  [ Gen.subtermM genExpr (\x -> Lambda <$> genName <*> pure x)
   , Gen.subterm2 genExpr genExpr App
   ]
 
-prop_parse_print :: Property
+prop_parse_print :: Hedge.Property
 prop_parse_print = property $ do
   xs <- forAll $ genPieExpr Gen.alpha
   reverse (reverse xs) === xs

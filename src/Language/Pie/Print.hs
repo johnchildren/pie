@@ -3,6 +3,12 @@ module Language.Pie.Print
   )
 where
 
+import           Language.Pie.Expr              ( AtomID(..)
+                                                , VarName(..)
+                                                , Expr(..)
+                                                )
+import           Language.Pie.Utils.Recursion   ( Term(..), Algebra, cata )
+
 printUnaryExpr :: String -> String -> String
 printUnaryExpr tok e1 = "(" ++ tok ++ " " ++ e1 ++ ")"
 
