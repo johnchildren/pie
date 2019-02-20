@@ -2,11 +2,8 @@
 
 module Main where
 
-import           Control.Category               ( (>>>) )
+import           Control.Category                         ( (>>>) )
 import           Text.Parsec
-
-newtype AtomID = AtomID String
-    deriving (Show, Eq)
 
 newtype Term f = In { out :: f (Term f) }
 
@@ -15,30 +12,28 @@ type Algebra f a = f a -> a
 cata :: (Functor f) => Algebra f a -> Term f -> a
 cata f = out >>> fmap (cata f) >>> f
 
-data Expr f = Pair f f
-         | Cons f f
+newtype AtomID = AtomID String
+    deriving (Show, Eq)
+
+newtype VarName = VarName String
+    deriving (Show, Eq)
+
+data Expr f = The f f
+         | Var VarName
          | AtomType
          | AtomData AtomID
+         | Pair f f
+         | Cons f f
          | Car f
          | Cdr f
+         | Arrow f f
+         | Lambda VarName f
+         | App f f
          | Zero
          | Add1 f
          deriving (Show, Functor)
 
 type Parser a = Parsec String () a
-
-parens :: Parser a -> Parser a
-parens = between (char '(') (char ')')
-
-spaces1 :: Parser ()
-spaces1 = skipMany1 space
-
--- Atom IDs must only contain letters and hyphens
-atomID :: Parser AtomID
-atomID = do
-  char '\''
-  id <- many (alphaNum <|> char '-')
-  pure $ AtomID id
 
 printUnaryExpr :: String -> String -> String
 printUnaryExpr tok e1 = "(" ++ tok ++ " " ++ e1 ++ ")"
@@ -65,14 +60,35 @@ printPie :: Term Expr -> String
 printPie = cata printPie'
 
 printPie' :: Algebra Expr String
-printPie' (AtomType             ) = "Atom"
-printPie' ((AtomData (AtomID s))) = "'" ++ s
-printPie' (Zero                 ) = "zero"
-printPie' ((Cons e1 e2)         ) = printBinaryExpr "cons" e1 e2
-printPie' ((Pair e1 e2)         ) = printBinaryExpr "Pair" e1 e2
-printPie' ((Car  e1   )         ) = printUnaryExpr "car" e1
-printPie' ((Cdr  e1   )         ) = printUnaryExpr "cdr" e1
-printPie' ((Add1 e1   )         ) = printUnaryExpr "add1" e1
+printPie' (The e1 e2      )       = printBinaryExpr "the" e1 e2
+printPie' (Var (VarName v))       = v
+printPie' AtomType                = "Atom"
+printPie' (AtomData (AtomID s)  ) = "'" ++ s
+printPie' (Pair e1 e2           ) = printBinaryExpr "Pair" e1 e2
+printPie' (Cons e1 e2           ) = printBinaryExpr "cons" e1 e2
+printPie' (Car e1               ) = printUnaryExpr "car" e1
+printPie' (Cdr e1               ) = printUnaryExpr "cdr" e1
+printPie' (Arrow  e1          e2) = printBinaryExpr "->" e1 e2
+printPie' (Lambda (VarName v) e ) = printBinaryExpr "lambda" ("(" ++ v ++ ")") e
+printPie' (App    e1          e2) = "(" ++ e1 ++ " " ++ e2 ++ ")"
+printPie' Zero                    = "zero"
+printPie' (Add1 e1)               = printUnaryExpr "add1" e1
+
+parens :: Parser a -> Parser a
+parens = between (char '(') (char ')')
+
+spaces1 :: Parser ()
+spaces1 = skipMany1 space
+
+-- Atom IDs must only contain letters and hyphens
+atomID :: Parser AtomID
+atomID = do
+  char '\''
+  id <- many1 (alphaNum <|> char '-')
+  pure $ AtomID id
+
+parseVarName :: Parser VarName
+parseVarName = VarName <$> many1 alphaNum
 
 parseUnaryExpr :: Parser (Term Expr -> Term Expr) -> Parser (Term Expr)
 parseUnaryExpr p = p <*> (spaces1 >> pie)
@@ -81,18 +97,23 @@ parseBinaryExpr
   :: Parser (Term Expr -> Term Expr -> Term Expr) -> Parser (Term Expr)
 parseBinaryExpr p = p <*> (spaces1 >> pie) <*> (spaces1 >> pie)
 
-pieExpr :: Parser (Term Expr)
-pieExpr =
-  (   parseBinaryExpr ((\x y -> In (Pair x y)) <$ string "Pair")
-  <|> (  string "c"
-      >> (   parseBinaryExpr ((\x y -> In (Cons x y)) <$ string "ons")
-         <|> parseUnaryExpr ((\x -> In (Car x)) <$ string "ar")
-         <|> parseUnaryExpr ((\x -> In (Cdr x)) <$ string "dr")
-         )
-      )
-  <|> parseUnaryExpr ((\x -> In (Add1 x)) <$ string "add1")
-  )
+parseLambdaExpr :: Parser (Term Expr)
+parseLambdaExpr =
+  ((\x y -> In (Lambda x y)) <$ string "lambda")
+    <*> (spaces >> parens parseVarName)
+    <*> (spaces >> pie)
 
+parsePieExpr :: Parser (Term Expr)
+parsePieExpr =
+  parseBinaryExpr ((\x y -> In (Pair x y)) <$ string "Pair")
+    <|> (  string "c"
+        >> (   parseBinaryExpr ((\x y -> In (Cons x y)) <$ string "ons")
+           <|> parseUnaryExpr ((In . Car) <$ string "ar")
+           <|> parseUnaryExpr ((In . Cdr) <$ string "dr")
+           )
+        )
+    <|> parseUnaryExpr ((In . Add1) <$ string "add1")
+    <|> parseLambdaExpr
 
 -- | Parse a pie expression
 --
@@ -109,17 +130,22 @@ pieExpr =
 -- >>> let atom = parse pie "" "'courgette"
 -- >>> printPie <$> atom
 -- Right "'courgette"
+--
+-- >>> let lambdaExpr = parse pie "" "(lambda (x) (cons x 'courgette))"
+-- >>> printPie <$> lambdaExpr
+-- Right "(lambda (x) (cons x 'courgette))"
 pie :: Parser (Term Expr)
 pie =
-  ((In AtomType) <$ string "Atom")
-    <|> ((\x -> In (AtomData x)) <$> atomID)
-    <|> ((In Zero) <$ string "zero")
-    <|> parens pieExpr
+  (In AtomType <$ string "Atom")
+    <|> (In . AtomData <$> atomID)
+    <|> (In Zero <$ string "zero")
+    <|> (In . Var <$> parseVarName)
+    <|> parens parsePieExpr
 
 parsePie :: String -> Either ParseError (Term Expr)
 parsePie = parse pie "<lit>"
 
-parsePieOrThrow :: String -> (Term Expr)
+parsePieOrThrow :: String -> Term Expr
 parsePieOrThrow s = case parsePie s of
   Right pie -> pie
   Left  err -> error (show err)
@@ -229,7 +255,7 @@ eval' (Cdr (Right (In (Cons _ v2)))) = Right v2
 eval' (Cdr (Right (In (Pair _ v2)))) = Right v2
 eval' (Cdr _                       ) = Left TypeError
 eval' Zero                           = Right (In Zero)
-eval' (Add1 e1)                      = (\x -> In (Add1 x)) <$> e1
+eval' (Add1 e1)                      = In . Add1 <$> e1
 
 main :: IO ()
 main = do
