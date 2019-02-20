@@ -1,4 +1,8 @@
-module Language.Pie.Eval (TypeError, eval) where
+module Language.Pie.Eval
+  ( TypeError
+  , eval
+  )
+where
 
 data TypeError = TypeError
   deriving (Show)

@@ -1,6 +1,11 @@
-module Language.Pie.Utils.Recursion (Term(..), Algebra, cata) where
+module Language.Pie.Utils.Recursion
+  ( Term(..)
+  , Algebra
+  , cata
+  )
+where
 
-import           Control.Category                         ( (>>>) )
+import           Control.Category               ( (>>>) )
 
 newtype Term f = In { out :: f (Term f) }
 

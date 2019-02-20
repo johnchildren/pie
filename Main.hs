@@ -2,11 +2,21 @@
 
 module Main where
 
-import Language.Pie.Parse (parsePie, parsePieOrThrow)
-import Language.Pie.Print (printPie)
-import Language.Pie.Eval (eval, TypeError)
-import Language.Pie.Expr (AtomID(..), VarName(..), Expr(..))
-import Language.Pie.Utils.Recursion (Term(..), Algebra, cata)
+import           Language.Pie.Parse             ( parsePie
+                                                , parsePieOrThrow
+                                                )
+import           Language.Pie.Print             ( printPie )
+import           Language.Pie.Eval              ( eval
+                                                , TypeError
+                                                )
+import           Language.Pie.Expr              ( AtomID(..)
+                                                , VarName(..)
+                                                , Expr(..)
+                                                )
+import           Language.Pie.Utils.Recursion   ( Term(..)
+                                                , Algebra
+                                                , cata
+                                                )
 
 -- | First form of judgement
 -- ______ is a ______.

@@ -1,4 +1,7 @@
-module Language.Pie.Print (printPie) where
+module Language.Pie.Print
+  ( printPie
+  )
+where
 
 printUnaryExpr :: String -> String -> String
 printUnaryExpr tok e1 = "(" ++ tok ++ " " ++ e1 ++ ")"

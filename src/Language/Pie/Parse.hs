@@ -1,9 +1,16 @@
-module Language.Pie.Parse (parsePie, parsePieOrThrow) where
+module Language.Pie.Parse
+  ( parsePie
+  , parsePieOrThrow
+  )
+where
 
-import Text.Parsec
+import           Text.Parsec
 
-import Language.Pie.Expr (AtomID(..), VarName(..), Expr(..))
-import Language.Pie.Utils.Recursion (Term(..))
+import           Language.Pie.Expr              ( AtomID(..)
+                                                , VarName(..)
+                                                , Expr(..)
+                                                )
+import           Language.Pie.Utils.Recursion   ( Term(..) )
 
 type Parser a = Parsec String () a
 

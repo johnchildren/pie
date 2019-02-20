@@ -1,6 +1,11 @@
 {-# LANGUAGE DeriveFunctor #-}
 
-module Language.Pie.Expr (AtomID(..), VarName(..), Expr(..)) where
+module Language.Pie.Expr
+  ( AtomID(..)
+  , VarName(..)
+  , Expr(..)
+  )
+where
 
 newtype AtomID = AtomID String
     deriving (Show, Eq)
