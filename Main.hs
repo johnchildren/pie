@@ -2,21 +2,16 @@
 
 module Main where
 
-import           Language.Pie.Parse             ( parsePie
-                                                , parsePieOrThrow
-                                                )
-import           Language.Pie.Print             ( printPie )
-import           Language.Pie.Eval              ( eval
-                                                , TypeError
-                                                )
-import           Language.Pie.Expr              ( AtomID(..)
-                                                , VarName(..)
-                                                , Expr(..)
-                                                )
-import           Language.Pie.Utils.Recursion   ( Term(..)
-                                                , Algebra
-                                                , cata
-                                                )
+import           Data.Functor.Foldable                    ( Fix(..) )
+import           Language.Pie.Parse                       ( parsePie )
+import           Language.Pie.Print                       ( printPie )
+import           Language.Pie.Eval                        ( eval
+                                                          , TypeError
+                                                          )
+import           Language.Pie.Expr                        ( AtomID(..)
+                                                          , VarName(..)
+                                                          , Expr(..)
+                                                          )
 
 -- | First form of judgement
 -- ______ is a ______.
@@ -32,11 +27,10 @@ import           Language.Pie.Utils.Recursion   ( Term(..)
 -- >>> let pairType = parsePieOrThrow "(Pair Atom Atom)"
 -- >>> judgement1 consData pairType
 -- True
-judgement1 :: Term Expr -> Term Expr -> Bool
-judgement1 (In (AtomData _)) (In AtomType) = True
-judgement1 (In (Cons d1 d2)) (In (Pair t1 t2)) =
-  judgement1 d1 t1 && judgement1 d2 t2
-judgement1 _ _ = False
+judgement1 :: Expr -> Expr -> Bool
+judgement1 (AtomData _) AtomType     = True
+judgement1 (Cons d1 d2) (Pair t1 t2) = judgement1 d1 t1 && judgement1 d2 t2
+judgement1 _            _            = False
 
 -- | Second form of judgement
 -- ______ is the same ______ as ______.
@@ -53,9 +47,9 @@ judgement1 _ _ = False
 -- >>> let baguette = parsePieOrThrow "'baguette"
 -- >>> judgement2 courgette atomType baguette
 -- False
-judgement2 :: Term Expr -> Term Expr -> Term Expr -> Bool
-judgement2 (In (AtomData id1)) (In AtomType) (In (AtomData id2)) = id1 == id2
-judgement2 (In (Cons c1 c2)) (In (Pair p1 p2)) (In (Cons c3 c4)) =
+judgement2 :: Expr -> Expr -> Expr -> Bool
+judgement2 (AtomData id1) AtomType (AtomData id2) = id1 == id2
+judgement2 (Cons c1 c2) (Pair p1 p2) (Cons c3 c4) =
   judgement2 c1 p1 c3 && judgement2 c2 p2 c4
 judgement2 _ _ _ = False
 
@@ -71,10 +65,10 @@ judgement2 _ _ _ = False
 -- >>> let atomType = parsePieOrThrow "Atom"
 -- >>> judgement3 atomType
 -- True
-judgement3 :: Term Expr -> Bool
-judgement3 (In AtomType  ) = True
-judgement3 (In (Pair _ _)) = True -- Not strictly true
-judgement3 _               = False
+judgement3 :: Expr -> Bool
+judgement3 AtomType   = True
+judgement3 (Pair _ _) = True -- Not strictly true
+judgement3 _          = False
 
 -- fourth form of judgement
 -- ______ and ______ are the same type.
@@ -88,13 +82,12 @@ judgement3 _               = False
 -- >>> let atomType = parsePieOrThrow "Atom"
 -- >>> judgement4 atomType atomType
 -- True
-judgement4 :: Term Expr -> Term Expr -> Bool
-judgement4 (In AtomType) (In AtomType) = True
-judgement4 (In (Pair p1 p2)) (In (Pair p3 p4)) =
-  judgement4 p1 p3 && judgement4 p2 p4
-judgement4 _ _ = False
+judgement4 :: Expr -> Expr -> Bool
+judgement4 AtomType     AtomType     = True
+judgement4 (Pair p1 p2) (Pair p3 p4) = judgement4 p1 p3 && judgement4 p2 p4
+judgement4 _            _            = False
 
 main :: IO ()
 main = do
-  let foo = parsePieOrThrow "'foo"
-  print $ judgement2 foo (In AtomType) foo
+  let foo = AtomData (AtomID "foo")
+  print $ judgement2 foo AtomType foo

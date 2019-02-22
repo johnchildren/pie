@@ -1,16 +1,15 @@
 module Language.Pie.Parse
   ( parsePie
-  , parsePieOrThrow
   )
 where
 
 import           Text.Parsec
+import           Data.Functor.Foldable                    ( Fix(..) )
 
-import           Language.Pie.Expr              ( AtomID(..)
-                                                , VarName(..)
-                                                , Expr(..)
-                                                )
-import           Language.Pie.Utils.Recursion   ( Term(..) )
+import           Language.Pie.Expr                        ( AtomID(..)
+                                                          , VarName(..)
+                                                          , Expr(..)
+                                                          )
 
 type Parser a = Parsec String () a
 
@@ -30,29 +29,29 @@ atomID = do
 parseVarName :: Parser VarName
 parseVarName = VarName <$> many1 alphaNum
 
-parseUnaryExpr :: Parser (Term Expr -> Term Expr) -> Parser (Term Expr)
-parseUnaryExpr p = p <*> (spaces1 >> pie)
+parseUnaryExpr :: Parser (Expr -> Expr) -> Parser Expr
+parseUnaryExpr p = p <*> (spaces1 >> pieParser)
 
 parseBinaryExpr
-  :: Parser (Term Expr -> Term Expr -> Term Expr) -> Parser (Term Expr)
-parseBinaryExpr p = p <*> (spaces1 >> pie) <*> (spaces1 >> pie)
+  :: Parser (Expr -> Expr -> Expr) -> Parser (Expr)
+parseBinaryExpr p = p <*> (spaces1 >> pieParser) <*> (spaces1 >> pieParser)
 
-parseLambdaExpr :: Parser (Term Expr)
+parseLambdaExpr :: Parser Expr
 parseLambdaExpr =
-  ((\x y -> In (Lambda x y)) <$ string "lambda")
+  (Lambda <$ string "lambda")
     <*> (spaces >> parens parseVarName)
-    <*> (spaces >> pie)
+    <*> (spaces >> pieParser)
 
-parsePieExpr :: Parser (Term Expr)
+parsePieExpr :: Parser Expr
 parsePieExpr =
-  parseBinaryExpr ((\x y -> In (Pair x y)) <$ string "Pair")
+  parseBinaryExpr (Pair <$ string "Pair")
     <|> (  string "c"
-        >> (   parseBinaryExpr ((\x y -> In (Cons x y)) <$ string "ons")
-           <|> parseUnaryExpr ((In . Car) <$ string "ar")
-           <|> parseUnaryExpr ((In . Cdr) <$ string "dr")
+        >> (   parseBinaryExpr (Cons <$ string "ons")
+           <|> parseUnaryExpr (Car <$ string "ar")
+           <|> parseUnaryExpr (Cdr <$ string "dr")
            )
         )
-    <|> parseUnaryExpr ((In . Add1) <$ string "add1")
+    <|> parseUnaryExpr (Add1 <$ string "add1")
     <|> parseLambdaExpr
 
 -- | Parse a pie expression
@@ -74,18 +73,13 @@ parsePieExpr =
 -- >>> let lambdaExpr = parse pie "" "(lambda (x) (cons x 'courgette))"
 -- >>> printPie <$> lambdaExpr
 -- Right "(lambda (x) (cons x 'courgette))"
-pie :: Parser (Term Expr)
-pie =
-  (In AtomType <$ string "Atom")
-    <|> (In . AtomData <$> atomID)
-    <|> (In Zero <$ string "zero")
-    <|> (In . Var <$> parseVarName)
+pieParser :: Parser Expr
+pieParser =
+  (AtomType <$ string "Atom")
+    <|> (AtomData <$> atomID)
+    <|> (Zero <$ string "zero")
+    <|> (Var <$> parseVarName)
     <|> parens parsePieExpr
 
-parsePie :: String -> Either ParseError (Term Expr)
-parsePie = parse pie "<lit>"
-
-parsePieOrThrow :: String -> Term Expr
-parsePieOrThrow s = case parsePie s of
-  Right pie -> pie
-  Left  err -> error (show err)
+parsePie :: String -> Either ParseError Expr
+parsePie = parse pieParser "<lit>"

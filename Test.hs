@@ -1,33 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import qualified Hedgehog                      as Hedge
-import qualified Hedgehog.Gen                  as Gen
+import           Test.Hspec
+import           Data.Functor.Foldable                    ( Fix(..) )
+import           Language.Pie.Parse                       ( parsePie )
+import           Language.Pie.Expr                        ( AtomID(..)
+                                                          , VarName(..)
+                                                          , Expr(..)
+                                                          )
 
-import           Language.Pie.Expr              ( AtomID(..)
-                                                , VarName(..)
-                                                , Expr(..)
-                                                )
-import           Language.Pie.Utils.Recursion   ( Term(..)
-                                                , Algebra
-                                                , cata
-                                                )
-
-genName :: Hedge.MonadGen m => m String
-genName = undefined
-
-genPieExpr :: Hedge.MonadGen m => m (Term Expr)
-genPieExpr = Gen.recursive
-  Gen.choice
-  [Hedge.Var <$> genName]
-  [ Gen.subtermM genExpr (\x -> Lambda <$> genName <*> pure x)
-  , Gen.subterm2 genExpr genExpr App
-  ]
-
-prop_parse_print :: Hedge.Property
-prop_parse_print = property $ do
-  xs <- forAll $ genPieExpr Gen.alpha
-  reverse (reverse xs) === xs
-
-tests :: IO Bool
-tests =
-  checkParallel $ Group "Test.Example" [("prop_parse_print", prop_parse_print)]
+main :: IO ()
+main = hspec $ do
+  describe "Parse" $ do
+    it "can parse the type Atom" $ do
+      parsePie "Atom" `shouldBe` Right AtomType

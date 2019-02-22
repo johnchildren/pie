@@ -1,11 +1,18 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Language.Pie.Expr
   ( AtomID(..)
   , VarName(..)
   , Expr(..)
+  , ExprF(..)
   )
 where
+
+import           Data.Functor.Foldable.TH                 ( makeBaseFunctor )
 
 newtype AtomID = AtomID String
     deriving (Show, Eq)
@@ -13,17 +20,19 @@ newtype AtomID = AtomID String
 newtype VarName = VarName String
     deriving (Show, Eq)
 
-data Expr f = The f f
+data Expr = The Expr Expr
          | Var VarName
          | AtomType
          | AtomData AtomID
-         | Pair f f
-         | Cons f f
-         | Car f
-         | Cdr f
-         | Arrow f f
-         | Lambda VarName f
-         | App f f
+         | Pair Expr Expr
+         | Cons Expr Expr
+         | Car Expr
+         | Cdr Expr
+         | Arrow Expr Expr
+         | Lambda VarName Expr
+         | App Expr Expr
          | Zero
-         | Add1 f
-         deriving (Show, Functor)
+         | Add1 Expr
+        deriving (Show, Eq)
+
+makeBaseFunctor ''Expr
