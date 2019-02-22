@@ -32,8 +32,7 @@ parseVarName = VarName <$> many1 alphaNum
 parseUnaryExpr :: Parser (Expr -> Expr) -> Parser Expr
 parseUnaryExpr p = p <*> (spaces1 >> pieParser)
 
-parseBinaryExpr
-  :: Parser (Expr -> Expr -> Expr) -> Parser (Expr)
+parseBinaryExpr :: Parser (Expr -> Expr -> Expr) -> Parser Expr
 parseBinaryExpr p = p <*> (spaces1 >> pieParser) <*> (spaces1 >> pieParser)
 
 parseLambdaExpr :: Parser Expr
@@ -54,25 +53,6 @@ parsePieExpr =
     <|> parseUnaryExpr (Add1 <$ string "add1")
     <|> parseLambdaExpr
 
--- | Parse a pie expression
---
--- Examples:
---
--- >>> let atomType = parse pie "" "Atom"
--- >>> printPie <$> atomType
--- Right "Atom"
---
--- >>> let pairType = parse pie "" "(Pair Atom Atom)"
--- >>> printPie <$> pairType
--- Right "(Pair Atom Atom)"
---
--- >>> let atom = parse pie "" "'courgette"
--- >>> printPie <$> atom
--- Right "'courgette"
---
--- >>> let lambdaExpr = parse pie "" "(lambda (x) (cons x 'courgette))"
--- >>> printPie <$> lambdaExpr
--- Right "(lambda (x) (cons x 'courgette))"
 pieParser :: Parser Expr
 pieParser =
   (AtomType <$ string "Atom")

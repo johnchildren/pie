@@ -18,21 +18,6 @@ printUnaryExpr tok e1 = "(" ++ tok ++ " " ++ e1 ++ ")"
 printBinaryExpr :: String -> String -> String -> String
 printBinaryExpr tok e1 e2 = "(" ++ tok ++ " " ++ e1 ++ " " ++ e2 ++ ")"
 
--- | Print an expression
---
--- Examples:
---
--- >>> let consData = parsePieOrThrow "(cons 'courgette 'baguette)"
--- >>> printPie consData
--- "(cons 'courgette 'baguette)"
---
--- >>> let pairType = parsePieOrThrow "(Pair Atom Atom)"
--- >>> printPie pairType
--- "(Pair Atom Atom)"
---
--- >>> let four = parsePieOrThrow "(add1 (add1 (add1 (add1 zero))))"
--- >>> printPie four
--- "(add1 (add1 (add1 (add1 zero))))"
 printPie :: Expr -> String
 printPie = cata printPie'
 

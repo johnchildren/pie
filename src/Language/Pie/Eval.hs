@@ -1,6 +1,6 @@
 module Language.Pie.Eval
   ( TypeError
-  , eval
+  , evalPie
   )
 where
 
@@ -15,23 +15,12 @@ import           Language.Pie.Expr                        ( AtomID(..)
                                                           )
 
 data TypeError = TypeError
-  deriving (Show)
+  deriving (Show, Eq)
 
 type Algebra t a = Base t a -> a
 
--- | Evaluate an expression
---
--- Examples:
---
--- >>> let expr = parsePieOrThrow "(car (cons (cons 'aubergine 'courgette) 'tomato))"
--- >>> printPie <$> eval expr
--- Right "(cons 'aubergine 'courgette)"
---
--- >>> let expr = parsePieOrThrow "(Pair (car (cons Atom 'olive)) (cdr (cons 'oil Atom)))"
--- >>> printPie <$> eval expr
--- Right "(Pair Atom Atom)"
-eval :: Expr -> Either TypeError Expr
-eval = cata eval'
+evalPie :: Expr -> Either TypeError Expr
+evalPie = cata eval'
 
 eval' :: Algebra Expr (Either TypeError Expr)
 eval' AtomTypeF                  = Right AtomType
