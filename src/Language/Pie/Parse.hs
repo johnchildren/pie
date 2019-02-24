@@ -4,7 +4,6 @@ module Language.Pie.Parse
 where
 
 import           Text.Parsec
-import           Data.Functor.Foldable                    ( Fix(..) )
 
 import           Language.Pie.Expr                        ( AtomID(..)
                                                           , VarName(..)
@@ -22,9 +21,9 @@ spaces1 = skipMany1 space
 -- Atom IDs must only contain letters and hyphens
 atomID :: Parser AtomID
 atomID = do
-  char '\''
-  id <- many1 (alphaNum <|> char '-')
-  pure $ AtomID id
+  _ <- char '\''
+  val <- many1 (alphaNum <|> char '-')
+  pure $ AtomID val
 
 parseVarName :: Parser VarName
 parseVarName = VarName <$> many1 alphaNum

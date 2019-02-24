@@ -3,7 +3,7 @@ module Language.Pie.Print
   )
 where
 
-import           Data.Functor.Foldable                    ( Base(..)
+import           Data.Functor.Foldable                    ( Base
                                                           , cata
                                                           )
 import           Language.Pie.Expr                        ( AtomID(..)
