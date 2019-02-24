@@ -11,7 +11,7 @@ jobs:
             - pie-v1-{{ checksum "pie.cabal" }}
       - run:
           name: Update package list
-          command: cabal update
+          command: cabal new-update
       - run:
           name: Configure
           command: cabal new-configure
