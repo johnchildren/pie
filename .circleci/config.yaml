@@ -1,0 +1,25 @@
+version: 2.1
+jobs:
+  build:
+    docker:
+      - image: haskell:latest
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Cached Dependencies
+          keys:
+            - pie-v1-{{ checksum "pie.cabal" }}
+      - run:
+          name: Configure
+          command: cabal new-configure
+      - run:
+          name: Run tests
+          command: cabal new-test
+      - run:
+          name: Build REPL
+          command: cabal new-build pie-repl
+      - save_cache:
+          name: Cached Dependencies
+          key: pie-v1-{{ checksum "pie.cabal" }}
+          paths:
+            - "dist-newstyle"

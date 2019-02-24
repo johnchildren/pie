@@ -1,15 +1,8 @@
-{-# LANGUAGE DeriveFunctor #-}
+module Main
+  (main)
+where
 
-module Main where
-
-import           Data.Functor.Foldable                    ( Fix(..) )
-import           Language.Pie.Parse                       ( parsePie )
-import           Language.Pie.Print                       ( printPie )
-import           Language.Pie.Eval                        ( evalPie
-                                                          , TypeError
-                                                          )
 import           Language.Pie.Expr                        ( AtomID(..)
-                                                          , VarName(..)
                                                           , Expr(..)
                                                           )
 
