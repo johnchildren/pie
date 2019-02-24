@@ -10,6 +10,9 @@ jobs:
           keys:
             - pie-v1-{{ checksum "pie.cabal" }}
       - run:
+          name: Update package list
+          command: cabal update
+      - run:
           name: Configure
           command: cabal new-configure
       - run:
