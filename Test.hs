@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 import           Test.Hspec
 import           Language.Pie.Parse                       ( parsePie )
 import           Language.Pie.Print                       ( printPie )
