@@ -21,7 +21,7 @@ spaces1 = skipMany1 space
 -- Atom IDs must only contain letters and hyphens
 atomID :: Parser AtomID
 atomID = do
-  _ <- char '\''
+  _   <- char '\''
   val <- many1 (alphaNum <|> char '-')
   pure $ AtomID val
 
@@ -57,6 +57,7 @@ pieParser =
   (AtomType <$ string "Atom")
     <|> (AtomData <$> atomID)
     <|> (Zero <$ string "zero")
+    <|> (Nat <$ string "Nat")
     <|> (Var <$> parseVarName)
     <|> parens parsePieExpr
 

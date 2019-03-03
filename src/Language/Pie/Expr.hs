@@ -31,6 +31,7 @@ data Expr = The Expr Expr
          | Arrow Expr Expr
          | Lambda VarName Expr
          | App Expr Expr
+         | Nat
          | Zero
          | Add1 Expr
         deriving (Show, Eq)

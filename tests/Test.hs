@@ -99,6 +99,12 @@ main = hspec $ do
                             (Pair AtomType AtomType)
       `shouldBe` Yes
 
+    it "checks if zero is a Nat" $ judgement1 emptyEnv Zero Nat `shouldBe` Yes
+
+    it "checks if (add1 zero) is a Nat"
+      $          judgement1 emptyEnv (Add1 Zero) Nat
+      `shouldBe` Yes
+
     it "normalises expressions"
       $ judgement1 emptyEnv
                    (Car (Cons (mkAtom "courgette") (mkAtom "baguette")))
@@ -119,6 +125,18 @@ main = hspec $ do
     it "checks than an atom is a different Atom to an atom with a different id"
       $ judgement2 emptyEnv (mkAtom "courgette") AtomType (mkAtom "baguette")
       `shouldBe` No
+
+    it "checks that zero is the same Nat as zero"
+      $          judgement2 emptyEnv Zero Nat Zero
+      `shouldBe` Yes
+
+    it "checks that (add1 zero) is not the same Nat as zero"
+      $          judgement2 emptyEnv (Add1 Zero) Nat Zero
+      `shouldBe` No
+
+    xit "checks that (add1 zero) is the same Nat as (add1 zero)"
+      $          judgement2 emptyEnv (Add1 Zero) Nat (Add1 Zero)
+      `shouldBe` Yes
 
     it "normalises expressions"
       $          judgement2 emptyEnv

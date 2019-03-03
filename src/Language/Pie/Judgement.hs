@@ -30,6 +30,7 @@ instance Semigroup Judgement where
 -- ______ is a ______.
 judgement1 :: Env -> Expr -> Expr -> Judgement
 judgement1 _ (AtomData _) AtomType = Yes
+judgement1 _ Zero         Nat      = Yes
 judgement1 env (Cons d1 d2) (Pair t1 t2) =
   judgement1 env d1 t1 <> judgement1 env d2 t2
 judgement1 env e1@(Car _) e2 = case evalPie env e1 of
@@ -50,6 +51,9 @@ judgement1 env e1@(App (Lambda _ _) _) e2 = case evalPie env e1 of
 judgement1 env e1 e2@(App (Lambda _ _) _) = case evalPie env e2 of
   Right x   -> judgement1 env e1 x
   Left  err -> TypeError err
+judgement1 env e1@(Add1 _) Nat = case evalPie env e1 of
+  Right _   -> Yes
+  Left  err -> TypeError err
 judgement1 _ _ _ = No
 
 -- | Second form of judgement
@@ -57,6 +61,7 @@ judgement1 _ _ _ = No
 judgement2 :: Env -> Expr -> Expr -> Expr -> Judgement
 judgement2 _ (AtomData id1) AtomType (AtomData id2) =
   if id1 == id2 then Yes else No
+judgement2 _ Zero Nat Zero = Yes
 judgement2 env (Cons c1 c2) (Pair p1 p2) (Cons c3 c4) =
   judgement2 env c1 p1 c3 <> judgement2 env c2 p2 c4
 judgement2 env e1@(Car _) e2 e3 = case evalPie env e1 of
