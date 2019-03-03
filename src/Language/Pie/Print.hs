@@ -25,6 +25,9 @@ printUnaryExpr tok e1 = "(" <> tok <+> e1 <> ")"
 printBinaryExpr :: Doc a -> Doc a -> Doc a -> Doc a
 printBinaryExpr tok e1 e2 = "(" <> tok <+> e1 <+> e2 <> ")"
 
+printTernaryExpr :: Doc a -> Doc a -> Doc a -> Doc a -> Doc a
+printTernaryExpr tok e1 e2 e3 = "(" <> tok <+> e1 <+> e2 <+> e3 <> ")"
+
 printPie :: Expr -> String
 printPie = show . cata printPie'
 
@@ -42,7 +45,8 @@ printPie' (CdrF e1             ) = printUnaryExpr "cdr" e1
 printPie' (ArrowF e1 e2        ) = printBinaryExpr "->" e1 e2
 printPie' (LambdaF (VarName v) e) =
   printBinaryExpr "lambda" ("(" <> pretty v <> ")") e
-printPie' (AppF e1 e2) = "(" <> e1 <+> e2 <> ")"
-printPie' NatF         = "Nat"
-printPie' ZeroF        = "zero"
-printPie' (Add1F e1)   = printUnaryExpr "add1" e1
+printPie' (AppF e1 e2)         = "(" <> e1 <+> e2 <> ")"
+printPie' NatF                 = "Nat"
+printPie' ZeroF                = "zero"
+printPie' (Add1F e1          ) = printUnaryExpr "add1" e1
+printPie' (WhichNatF e1 e2 e3) = printTernaryExpr "which-Nat" e1 e2 e3

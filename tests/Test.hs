@@ -58,35 +58,72 @@ main = hspec $ do
       `shouldBe` "(add1 (add1 (add1 (add1 zero))))"
 
   describe "Evaluating pie expression" $ do
-    it "normalises expressions"
-      $          evalPie
-                   emptyEnv
-                   (Car
-                     (Cons (Cons (mkAtom "aubergine") (mkAtom "courgette"))
-                           (mkAtom "tomato")
+    describe "normalisation" $ do
+      it "normalises expressions"
+        $          evalPie
+                     emptyEnv
+                     (Car
+                       (Cons (Cons (mkAtom "aubergine") (mkAtom "courgette"))
+                             (mkAtom "tomato")
+                       )
                      )
-                   )
-      `shouldBe` Right (Cons (mkAtom "aubergine") (mkAtom "courgette"))
+        `shouldBe` Right (Cons (mkAtom "aubergine") (mkAtom "courgette"))
 
-    it "normalises expression of types and values"
-      $          evalPie
-                   emptyEnv
-                   (Pair (Car (Cons AtomType (mkAtom "olive")))
-                         (Cdr (Cons (mkAtom "oil") AtomType))
-                   )
-      `shouldBe` Right (Pair AtomType AtomType)
+      it "normalises expression of types and values"
+        $          evalPie
+                     emptyEnv
+                     (Pair (Car (Cons AtomType (mkAtom "olive")))
+                           (Cdr (Cons (mkAtom "oil") AtomType))
+                     )
+        `shouldBe` Right (Pair AtomType AtomType)
 
-    it "can apply lambda expressions"
-      $ evalPie emptyEnv (App (Lambda (VarName "x") (mkVar "x")) AtomType)
-      `shouldBe` Right AtomType
+    describe "lambda expressions" $ do
+      it "can apply lambda expressions"
+        $ evalPie emptyEnv (App (Lambda (VarName "x") (mkVar "x")) AtomType)
+        `shouldBe` Right AtomType
 
-    it "will normalise while applying a lambda expression"
-      $          evalPie
-                   emptyEnv
-                   (App (Lambda (VarName "x") (Car (Cons (mkVar "x") (mkAtom "foo"))))
-                        AtomType
-                   )
-      `shouldBe` Right AtomType
+      it "will normalise while applying a lambda expression"
+        $          evalPie
+                     emptyEnv
+                     (App
+                       (Lambda (VarName "x") (Car (Cons (mkVar "x") (mkAtom "foo"))))
+                       AtomType
+                     )
+        `shouldBe` Right AtomType
+
+      xit "will ignore unused variables"
+        $ evalPie emptyEnv (App (Lambda (VarName "x") (mkAtom "foo")) AtomType)
+        `shouldBe` Right (mkAtom "foo")
+
+      xit "works with nested lambda applications"
+        $          evalPie
+                     emptyEnv
+                     (App
+                       (App (Lambda (VarName "x") (Lambda (VarName "y") (mkVar "x")))
+                            AtomType
+                       )
+                       (mkAtom "foo")
+                     )
+        `shouldBe` Right AtomType
+
+    describe "which-Nat" $ do
+      it "evaluates to base when target is zero"
+        $          evalPie
+                     emptyEnv
+                     (WhichNat Zero
+                               (mkAtom "naught")
+                               (Lambda (VarName "n") (mkAtom "more"))
+                     )
+        `shouldBe` Right (mkAtom "naught")
+
+      xit "evaluates to step n when target is (add1 n)"
+        $          evalPie
+                     emptyEnv
+                     (WhichNat (Add1 (Add1 (Add1 (Add1 Zero))))
+                               (mkAtom "naught")
+                               (Lambda (VarName "n") (mkAtom "more"))
+                     )
+        `shouldBe` Right (mkAtom "more")
 
   describe "The first form of Judgement" $ do
     it "checks if an expression if of a type"
