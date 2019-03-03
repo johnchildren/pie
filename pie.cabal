@@ -21,7 +21,9 @@ library
                      , Language.Pie.Judgement
   build-depends:       base >=4.9 && <4.13
                      , containers >=0.6 && <0.7
+                     , text >=1.2 && <1.3
                      , parsec >=3.1 && <3.2
+                     , prettyprinter >=1.2 && <1.3
                      , recursion-schemes >=5.1 &&<5.2
   default-language:    Haskell2010
   ghc-options:         -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wcompat -Widentities -Wredundant-constraints -Wmissing-export-lists -Wpartial-fields -Wincomplete-patterns
@@ -37,6 +39,7 @@ executable pie-repl
 
 test-suite pie-test
   type:                exitcode-stdio-1.0
+  hs-source-dirs:      tests
   main-is:             Test.hs
   build-depends:       base >=4.9 && <4.13
                      , hspec >= 2.7 && <2.8
