@@ -1,9 +1,12 @@
 module Language.Pie.Eval
   ( TypeError
   , evalPie
+  , Env
+  , emptyEnv
   )
 where
 
+import qualified Data.Map                      as Map
 import           Data.Functor.Foldable                    ( Base
                                                           , cata
                                                           )
@@ -17,8 +20,13 @@ data TypeError = TypeError
 
 type Algebra t a = Base t a -> a
 
-evalPie :: Expr -> Either TypeError Expr
-evalPie = cata eval'
+type Env = Map.Map VarName Expr
+
+emptyEnv :: Env
+emptyEnv = Map.empty
+
+evalPie :: Env -> Expr -> Either TypeError Expr
+evalPie env = cata eval'
  where
   eval' :: Algebra Expr (Either TypeError Expr)
   eval' (TheF e1 e2  )             = The <$> e1 <*> e2 --TODO: this should be a type check

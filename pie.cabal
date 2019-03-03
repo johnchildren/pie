@@ -1,12 +1,12 @@
 name:                pie
 version:             0.1.0.0
 synopsis:            Pie interpreter
--- description:         
+-- description:
 license:             BSD3
 license-file:        LICENSE
 author:              John Children
 maintainer:          john.a.children@gmail.com
--- copyright:           
+-- copyright:
 category:            Language
 build-type:          Simple
 extra-source-files:  ChangeLog.md
@@ -19,6 +19,7 @@ library
                      , Language.Pie.Print
                      , Language.Pie.Eval
   build-depends:       base >=4.9 && <4.13
+                     , containers >=0.6 && <0.7
                      , parsec >=3.1 && <3.2
                      , recursion-schemes >=5.1 &&<5.2
   default-language:    Haskell2010

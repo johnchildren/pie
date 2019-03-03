@@ -1,7 +1,11 @@
+module Main where
+
 import           Test.Hspec
 import           Language.Pie.Parse                       ( parsePie )
 import           Language.Pie.Print                       ( printPie )
-import           Language.Pie.Eval                        ( evalPie )
+import           Language.Pie.Eval                        ( evalPie
+                                                          , emptyEnv
+                                                          )
 import           Language.Pie.Expr                        ( AtomID(..)
                                                           , VarName(..)
                                                           , Expr(..)
@@ -44,6 +48,7 @@ main = hspec $ do
   describe "Eval" $ do
     it "normalises expressions"
       $          evalPie
+                   emptyEnv
                    (Car
                      (Cons
                        (Cons (AtomData (AtomID "aubergine"))
@@ -59,11 +64,24 @@ main = hspec $ do
 
     it "normalises expression of types and values"
       $          evalPie
+                   emptyEnv
                    (Pair (Car (Cons AtomType (AtomData (AtomID "olive"))))
                          (Cdr (Cons (AtomData (AtomID "oil")) AtomType))
                    )
       `shouldBe` Right (Pair AtomType AtomType)
 
     it "can apply lambda expressions"
-      $ evalPie (App (Lambda (VarName "x") (Var (VarName "x"))) AtomType)
+      $ evalPie emptyEnv
+                (App (Lambda (VarName "x") (Var (VarName "x"))) AtomType)
+      `shouldBe` Right AtomType
+
+    it "will normalise while applying a lambda expression"
+      $          evalPie
+                   emptyEnv
+                   (App
+                     (Lambda (VarName "x")
+                             (Car (Cons (Var (VarName "x")) (AtomData (AtomID "foo"))))
+                     )
+                     AtomType
+                   )
       `shouldBe` Right AtomType
