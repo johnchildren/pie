@@ -13,6 +13,7 @@ import           Language.Pie.Judgement                   ( judgement1
                                                           , judgement2
                                                           , judgement3
                                                           , judgement4
+                                                          , Judgement(..)
                                                           )
 import           Language.Pie.Expr                        ( AtomID(..)
                                                           , VarName(..)
@@ -89,35 +90,82 @@ main = hspec $ do
 
   describe "The first form of Judgement" $ do
     it "checks if an expression if of a type"
-      $          judgement1 (mkAtom "x") AtomType
-      `shouldBe` True
+      $          judgement1 emptyEnv (mkAtom "x") AtomType
+      `shouldBe` Yes
 
     it "checks if a cons of two atoms has the type of a pair of two atom types"
-      $          judgement1 (Cons (mkAtom "courgette") (mkAtom "baguette"))
+      $          judgement1 emptyEnv
+                            (Cons (mkAtom "courgette") (mkAtom "baguette"))
                             (Pair AtomType AtomType)
-      `shouldBe` True
+      `shouldBe` Yes
+
+    it "normalises expressions"
+      $ judgement1 emptyEnv
+                   (Car (Cons (mkAtom "courgette") (mkAtom "baguette")))
+                   AtomType
+      `shouldBe` Yes
+
+    it "applies lambda expressions"
+      $ judgement1 emptyEnv
+                   (App (Lambda (VarName "x") (mkVar "x")) (mkAtom "foo"))
+                   AtomType
+      `shouldBe` Yes
 
   describe "The second form of Judgement" $ do
     it "checks that an atom is the same Atom as an atom that has the same id"
-      $          judgement2 (mkAtom "courgette") AtomType (mkAtom "courgette")
-      `shouldBe` True
+      $ judgement2 emptyEnv (mkAtom "courgette") AtomType (mkAtom "courgette")
+      `shouldBe` Yes
 
     it "checks than an atom is a different Atom to an atom with a different id"
-      $          judgement2 (mkAtom "courgette") AtomType (mkAtom "baguette")
-      `shouldBe` False
+      $ judgement2 emptyEnv (mkAtom "courgette") AtomType (mkAtom "baguette")
+      `shouldBe` No
+
+    it "normalises expressions"
+      $          judgement2 emptyEnv
+                            (Car (Pair (mkAtom "foo") AtomType))
+                            AtomType
+                            (mkAtom "foo")
+      `shouldBe` Yes
+
+    it "applies lambda expressions"
+      $ judgement2 emptyEnv
+                   (App (Lambda (VarName "x") (mkVar "x")) (mkAtom "foo"))
+                   AtomType
+                   (mkAtom "foo")
+      `shouldBe` Yes
 
   describe "The third form of Judgement" $ do
     it "checks than an atom is not a type"
-      $          judgement3 (mkAtom "courgette")
-      `shouldBe` False
+      $          judgement3 emptyEnv (mkAtom "courgette")
+      `shouldBe` No
 
-    it "checks that Atom is a type" $ judgement3 AtomType `shouldBe` True
+    it "checks that Atom is a type"
+      $          judgement3 emptyEnv AtomType
+      `shouldBe` Yes
+
+    it "normalises expressions"
+      $          judgement3 emptyEnv (Car (Pair AtomType AtomType))
+      `shouldBe` Yes
+
+    it "applies lambda expressions"
+      $ judgement3 emptyEnv (App (Lambda (VarName "x") (mkVar "x")) AtomType)
+      `shouldBe` Yes
 
   describe "The fourth form of Judgement" $ do
     it "checks that two atoms with the same id are not the same type"
-      $          judgement4 (mkAtom "courgette") (mkAtom "courgette")
-      `shouldBe` False
+      $          judgement4 emptyEnv (mkAtom "courgette") (mkAtom "courgette")
+      `shouldBe` No
 
     it "checks that two Atom types are the same type"
-      $          judgement4 AtomType AtomType
-      `shouldBe` True
+      $          judgement4 emptyEnv AtomType AtomType
+      `shouldBe` Yes
+
+    it "normalises expressions"
+      $          judgement4 emptyEnv (Car (Pair AtomType AtomType)) AtomType
+      `shouldBe` Yes
+
+    it "applies lambda expressions"
+      $          judgement4 emptyEnv
+                            (App (Lambda (VarName "x") (mkVar "x")) AtomType)
+                            AtomType
+      `shouldBe` Yes
