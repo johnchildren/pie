@@ -91,11 +91,11 @@ main = hspec $ do
                      )
         `shouldBe` Right AtomType
 
-      xit "will ignore unused variables"
+      it "will ignore unused variables"
         $ evalPie emptyEnv (App (Lambda (VarName "x") (mkAtom "foo")) AtomType)
         `shouldBe` Right (mkAtom "foo")
 
-      xit "works with nested lambda applications"
+      it "works with nested lambda applications"
         $          evalPie
                      emptyEnv
                      (App
@@ -116,7 +116,7 @@ main = hspec $ do
                      )
         `shouldBe` Right (mkAtom "naught")
 
-      xit "evaluates to step n when target is (add1 n)"
+      it "evaluates to step n when target is (add1 n)"
         $          evalPie
                      emptyEnv
                      (WhichNat (Add1 (Add1 (Add1 (Add1 Zero))))

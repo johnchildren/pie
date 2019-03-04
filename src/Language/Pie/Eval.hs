@@ -56,11 +56,11 @@ evalPie env = cata eval'
   eval' WhichNatF{} = Left TypeError
 
 apply :: VarName -> Expr -> Expr -> Expr
-apply v body = cata apply'
+apply v body applied = cata apply' body
  where
   apply' :: Algebra Expr Expr
   apply' (TheF e1 e2  )       = The e1 e2
-  apply' (VarF varname)       = if v == varname then body else Var varname
+  apply' (VarF varname)       = if v == varname then applied else Var varname
   apply' AtomTypeF            = AtomType
   apply' (AtomDataF atomID)   = AtomData atomID
   apply' ZeroF                = Zero
