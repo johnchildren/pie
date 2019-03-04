@@ -50,3 +50,4 @@ printPie' NatF                 = "Nat"
 printPie' ZeroF                = "zero"
 printPie' (Add1F e1          ) = printUnaryExpr "add1" e1
 printPie' (WhichNatF e1 e2 e3) = printTernaryExpr "which-Nat" e1 e2 e3
+printPie' (IterNatF e1 e2 e3)  = printTernaryExpr "iter-Nat" e1 e2 e3

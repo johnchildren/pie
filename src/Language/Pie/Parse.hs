@@ -34,6 +34,9 @@ parseUnaryExpr p = p <*> (spaces1 >> pieParser)
 parseBinaryExpr :: Parser (Expr -> Expr -> Expr) -> Parser Expr
 parseBinaryExpr p = p <*> (spaces1 >> pieParser) <*> (spaces1 >> pieParser)
 
+parseTernaryExpr :: Parser (Expr -> Expr -> Expr -> Expr) -> Parser Expr
+parseTernaryExpr p = p <*> (spaces1 >> pieParser) <*> (spaces1 >> pieParser) <*> (spaces1 >> pieParser)
+
 parseLambdaExpr :: Parser Expr
 parseLambdaExpr =
   (Lambda <$ string "lambda")
@@ -50,6 +53,8 @@ parsePieExpr =
            )
         )
     <|> parseUnaryExpr (Add1 <$ string "add1")
+    <|> parseTernaryExpr (WhichNat <$ string "which-Nat")
+    <|> parseTernaryExpr (IterNat <$ string "iter-Nat")
     <|> parseLambdaExpr
 
 pieParser :: Parser Expr

@@ -15,7 +15,7 @@ import           Language.Pie.Expr                        ( VarName(..)
                                                           , ExprF(..)
                                                           )
 
-data TypeError = TypeError
+data TypeError = TypeError String
   deriving (Show, Eq)
 
 type Algebra t a = Base t a -> a
@@ -37,23 +37,29 @@ evalPie env = cata eval'
   eval' (PairF e1 e2             ) = Pair <$> e1 <*> e2
   eval' (CarF (Right (Cons v1 _))) = Right v1
   eval' (CarF (Right (Pair v1 _))) = Right v1
-  eval' (CarF _                  ) = Left TypeError
+  eval' (CarF _                  ) = Left (TypeError "can't car")
   eval' (CdrF (Right (Cons _ v2))) = Right v2
   eval' (CdrF (Right (Pair _ v2))) = Right v2
-  eval' (CdrF _                  ) = Left TypeError
+  eval' (CdrF _                  ) = Left (TypeError "can't cdr")
   eval' NatF                       = Right Nat
   eval' ZeroF                      = Right Zero
   eval' (Add1F e1@(Right Zero))    = Add1 <$> e1
   eval' (Add1F e1@(Right (Add1 _))) = Add1 <$> e1
-  eval' (Add1F _)                  = Left TypeError
+  eval' (Add1F e)                  = Left (TypeError ("can't add " ++ show e))
   eval' (ArrowF e1 e2)             = Arrow <$> e1 <*> e2
   eval' (LambdaF var expr)         = Lambda var <$> expr
   eval' (AppF (Right (Lambda v body)) applied) = apply v body <$> applied
-  eval' (AppF _ _)                 = Left TypeError -- TODO: is this true?
+  eval' (AppF _ _)                 = Left (TypeError "can't apply") -- TODO: is this true?
+  -- which-Nat
   eval' (WhichNatF (Right Zero) base _) = base
   eval' (WhichNatF (Right (Add1 n)) _ step) =
     flip App n <$> step >>= evalPie env
-  eval' WhichNatF{} = Left TypeError
+  eval' WhichNatF{} = Left (TypeError "can't which-Nat")
+  -- iter-Nat
+  eval' (IterNatF (Right Zero) base _) = base
+  eval' (IterNatF (Right (Add1 n)) base step) =
+    ((\b s -> (App s (IterNat n b s))) <$> base <*> step) >>= evalPie env
+  eval' IterNatF{} = Left (TypeError "can't iter-Nat")
 
 apply :: VarName -> Expr -> Expr -> Expr
 apply v body applied = cata apply' body
@@ -74,3 +80,4 @@ apply v body applied = cata apply' body
   apply' (LambdaF var expr  ) = Lambda var expr
   apply' (AppF    e1  e2    ) = App e1 e2 -- TODO: don't think this should ever happen?
   apply' (WhichNatF e1 e2 e3) = WhichNat e1 e2 e3
+  apply' (IterNatF e1 e2 e3) = IterNat e1 e2 e3

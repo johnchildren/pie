@@ -125,6 +125,34 @@ main = hspec $ do
                      )
         `shouldBe` Right (mkAtom "more")
 
+    describe "iter-Nat" $ do
+      it "evaluates to base when target is zero"
+        $          evalPie
+                     emptyEnv
+                     (IterNat Zero
+                               (mkAtom "naught")
+                               (Lambda (VarName "n") (mkAtom "more"))
+                     )
+        `shouldBe` Right (mkAtom "naught")
+
+      it "evaluates to step n when target is (add1 n)"
+        $          evalPie
+                     emptyEnv
+                     (IterNat (Add1 (Add1 (Add1 (Add1 Zero))))
+                               (mkAtom "naught")
+                               (Lambda (VarName "n") (mkAtom "more"))
+                     )
+        `shouldBe` Right (mkAtom "more")
+
+      xit "each add1 in the value of target is replaced by a step"
+        $          evalPie
+                     emptyEnv
+                     (IterNat (Add1 (Add1 (Add1 (Add1 (Add1 Zero)))))
+                               (Add1 (Add1 (Add1 Zero)))
+                               (Lambda (VarName "smaller") (Add1 (mkVar "smaller")))
+                     )
+        `shouldBe` Right (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 Zero))))))))
+
   describe "The first form of Judgement" $ do
     it "checks if an expression if of a type"
       $          judgement1 emptyEnv (mkAtom "x") AtomType
