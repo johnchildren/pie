@@ -61,7 +61,8 @@ judgement1 _ _ _ = No
 judgement2 :: Env -> Expr -> Expr -> Expr -> Judgement
 judgement2 _ (AtomData id1) AtomType (AtomData id2) =
   if id1 == id2 then Yes else No
-judgement2 _ Zero Nat Zero = Yes
+judgement2 _   Zero      Nat Zero      = Yes
+judgement2 env (Add1 e1) Nat (Add1 e2) = judgement2 env e1 Nat e2
 judgement2 env (Cons c1 c2) (Pair p1 p2) (Cons c3 c4) =
   judgement2 env c1 p1 c3 <> judgement2 env c2 p2 c4
 judgement2 env e1@(Car _) e2 e3 = case evalPie env e1 of

@@ -26,7 +26,15 @@ library
                      , prettyprinter >=1.2 && <1.3
                      , recursion-schemes >=5.1 &&<5.2
   default-language:    Haskell2010
-  ghc-options:         -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wcompat -Widentities -Wredundant-constraints -Wmissing-export-lists -Wpartial-fields -Wincomplete-patterns
+  ghc-options:         -Wall
+                       -Wincomplete-uni-patterns
+                       -Wincomplete-record-updates
+                       -Wcompat
+                       -Widentities
+                       -Wredundant-constraints
+                       -Wmissing-export-lists
+                       -Wpartial-fields
+                       -Wincomplete-patterns
 
 executable pie-repl
   main-is:             Main.hs
@@ -35,7 +43,15 @@ executable pie-repl
                      , recursion-schemes >=5.1 &&<5.2
                      , pie
   default-language:    Haskell2010
-  ghc-options:         -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wcompat -Widentities -Wredundant-constraints -Wmissing-export-lists -Wpartial-fields -Wincomplete-patterns
+  ghc-options:         -Wall
+                       -Wincomplete-uni-patterns
+                       -Wincomplete-record-updates
+                       -Wcompat
+                       -Widentities
+                       -Wredundant-constraints
+                       -Wmissing-export-lists
+                       -Wpartial-fields
+                       -Wincomplete-patterns
 
 test-suite pie-test
   type:                exitcode-stdio-1.0
@@ -46,4 +62,12 @@ test-suite pie-test
                      , hedgehog >=0.6 && <0.7
                      , pie
   default-language:    Haskell2010
-  ghc-options:         -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wcompat -Widentities -Wredundant-constraints -Wmissing-export-lists -Wpartial-fields -Wincomplete-patterns
+  ghc-options:         -Wall
+                       -Wincomplete-uni-patterns
+                       -Wincomplete-record-updates
+                       -Wcompat
+                       -Widentities
+                       -Wredundant-constraints
+                       -Wmissing-export-lists
+                       -Wpartial-fields
+                       -Wincomplete-patterns

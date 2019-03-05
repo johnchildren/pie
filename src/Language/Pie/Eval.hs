@@ -15,7 +15,8 @@ import           Language.Pie.Expr                        ( VarName(..)
                                                           , ExprF(..)
                                                           )
 
-data TypeError = TypeError String
+-- worst type errors ever
+newtype TypeError = TypeError String
   deriving (Show, Eq)
 
 type Algebra t a = Base t a -> a
@@ -54,11 +55,11 @@ evalPie env = cata eval'
   eval' (WhichNatF (Right Zero) base _) = base
   eval' (WhichNatF (Right (Add1 n)) _ step) =
     flip App n <$> step >>= evalPie env
-  eval' WhichNatF{} = Left (TypeError "can't which-Nat")
+  eval' WhichNatF{}                    = Left (TypeError "can't which-Nat")
   -- iter-Nat
   eval' (IterNatF (Right Zero) base _) = base
   eval' (IterNatF (Right (Add1 n)) base step) =
-    ((\b s -> (App s (IterNat n b s))) <$> base <*> step) >>= evalPie env
+    ((\b s -> App s (IterNat n b s)) <$> base <*> step) >>= evalPie env
   eval' IterNatF{} = Left (TypeError "can't iter-Nat")
 
 apply :: VarName -> Expr -> Expr -> Expr
@@ -80,4 +81,4 @@ apply v body applied = cata apply' body
   apply' (LambdaF var expr  ) = Lambda var expr
   apply' (AppF    e1  e2    ) = App e1 e2 -- TODO: don't think this should ever happen?
   apply' (WhichNatF e1 e2 e3) = WhichNat e1 e2 e3
-  apply' (IterNatF e1 e2 e3) = IterNat e1 e2 e3
+  apply' (IterNatF  e1 e2 e3) = IterNat e1 e2 e3

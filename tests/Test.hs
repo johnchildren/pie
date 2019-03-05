@@ -130,8 +130,8 @@ main = hspec $ do
         $          evalPie
                      emptyEnv
                      (IterNat Zero
-                               (mkAtom "naught")
-                               (Lambda (VarName "n") (mkAtom "more"))
+                              (mkAtom "naught")
+                              (Lambda (VarName "n") (mkAtom "more"))
                      )
         `shouldBe` Right (mkAtom "naught")
 
@@ -139,8 +139,8 @@ main = hspec $ do
         $          evalPie
                      emptyEnv
                      (IterNat (Add1 (Add1 (Add1 (Add1 Zero))))
-                               (mkAtom "naught")
-                               (Lambda (VarName "n") (mkAtom "more"))
+                              (mkAtom "naught")
+                              (Lambda (VarName "n") (mkAtom "more"))
                      )
         `shouldBe` Right (mkAtom "more")
 
@@ -148,10 +148,12 @@ main = hspec $ do
         $          evalPie
                      emptyEnv
                      (IterNat (Add1 (Add1 (Add1 (Add1 (Add1 Zero)))))
-                               (Add1 (Add1 (Add1 Zero)))
-                               (Lambda (VarName "smaller") (Add1 (mkVar "smaller")))
+                              (Add1 (Add1 (Add1 Zero)))
+                              (Lambda (VarName "smaller") (Add1 (mkVar "smaller")))
                      )
-        `shouldBe` Right (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 Zero))))))))
+        `shouldBe` Right
+                     (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 Zero)))))))
+                     )
 
   describe "The first form of Judgement" $ do
     it "checks if an expression if of a type"
@@ -199,7 +201,7 @@ main = hspec $ do
       $          judgement2 emptyEnv (Add1 Zero) Nat Zero
       `shouldBe` No
 
-    xit "checks that (add1 zero) is the same Nat as (add1 zero)"
+    it "checks that (add1 zero) is the same Nat as (add1 zero)"
       $          judgement2 emptyEnv (Add1 Zero) Nat (Add1 Zero)
       `shouldBe` Yes
 
