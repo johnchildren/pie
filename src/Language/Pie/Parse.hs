@@ -2,6 +2,7 @@
 
 module Language.Pie.Parse
   ( parsePie
+  , parseErrorPretty
   )
 where
 
