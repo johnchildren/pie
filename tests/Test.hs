@@ -1,9 +1,12 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main
   ( main
   )
 where
 
-import           Test.Hspec
+import           Test.Tasty
+import           Test.Tasty.Hspec
 import           Language.Pie.Parse                       ( parsePie )
 import           Language.Pie.Print                       ( printPie )
 import           Language.Pie.Eval                        ( evalPie
@@ -20,14 +23,13 @@ import           Language.Pie.Expr                        ( AtomID(..)
                                                           , Expr(..)
                                                           )
 
-mkAtom :: String -> Expr
-mkAtom = AtomData . AtomID
-
-mkVar :: String -> Expr
-mkVar = Var . VarName
-
 main :: IO ()
-main = hspec $ do
+main = do
+  mySpec <- testSpec "specs" spec
+  defaultMain (testGroup "tests" [localOption Success mySpec])
+
+spec :: Spec
+spec = do
   describe "Parsing pie expressions" $ do
     it "can parse the type Atom" $ parsePie "Atom" `shouldBe` Right AtomType
 
@@ -155,6 +157,27 @@ main = hspec $ do
                      (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 Zero)))))))
                      )
 
+    describe "rec-Nat" $ do
+      it "evaluates to base when target is zero"
+        $          evalPie
+                     emptyEnv
+                     (WhichNat
+                       Zero
+                       (mkAtom "naught")
+                       (Lambda (VarName "n") (Lambda (VarName "i") (mkAtom "more")))
+                     )
+        `shouldBe` Right (mkAtom "naught")
+
+      xit "evaluates to (step n (iter-Nat n base step)) when target is (add1 n)"
+        $          evalPie
+                     emptyEnv
+                     (WhichNat
+                       (Add1 (Add1 (Add1 (Add1 Zero))))
+                       (mkAtom "naught")
+                       (Lambda (VarName "n") (Lambda (VarName "i") (mkAtom "more")))
+                     )
+        `shouldBe` Right (mkAtom "more")
+
   describe "The first form of Judgement" $ do
     it "checks if an expression if of a type"
       $          judgement1 emptyEnv (mkAtom "x") AtomType
@@ -254,3 +277,9 @@ main = hspec $ do
                             (App (Lambda (VarName "x") (mkVar "x")) AtomType)
                             AtomType
       `shouldBe` Yes
+
+mkAtom :: String -> Expr
+mkAtom = AtomData . AtomID
+
+mkVar :: String -> Expr
+mkVar = Var . VarName

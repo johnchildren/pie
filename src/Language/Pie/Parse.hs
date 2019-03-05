@@ -1,47 +1,55 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Language.Pie.Parse
   ( parsePie
   )
 where
 
-import           Text.Parsec
+import           Data.Void                                ( Void )
+import           Data.Text                                ( Text )
+import           Text.Megaparsec
+import           Text.Megaparsec.Char
 
 import           Language.Pie.Expr                        ( AtomID(..)
                                                           , VarName(..)
                                                           , Expr(..)
                                                           )
 
-type Parser a = Parsec String () a
+type Parser = Parsec Void Text
+
+type PieParseError = ParseError Char Void
 
 parens :: Parser a -> Parser a
 parens = between (char '(') (char ')')
-
-spaces1 :: Parser ()
-spaces1 = skipMany1 space
 
 -- Atom IDs must only contain letters and hyphens
 atomID :: Parser AtomID
 atomID = do
   _   <- char '\''
-  val <- many1 (alphaNum <|> char '-')
+  val <- some (letterChar <|> char '-')
   pure $ AtomID val
 
 parseVarName :: Parser VarName
-parseVarName = VarName <$> many1 alphaNum
+parseVarName = VarName <$> some letterChar
 
 parseUnaryExpr :: Parser (Expr -> Expr) -> Parser Expr
-parseUnaryExpr p = p <*> (spaces1 >> pieParser)
+parseUnaryExpr p = p <*> (space1 >> pieParser)
 
 parseBinaryExpr :: Parser (Expr -> Expr -> Expr) -> Parser Expr
-parseBinaryExpr p = p <*> (spaces1 >> pieParser) <*> (spaces1 >> pieParser)
+parseBinaryExpr p = p <*> (space1 >> pieParser) <*> (space1 >> pieParser)
 
 parseTernaryExpr :: Parser (Expr -> Expr -> Expr -> Expr) -> Parser Expr
-parseTernaryExpr p = p <*> (spaces1 >> pieParser) <*> (spaces1 >> pieParser) <*> (spaces1 >> pieParser)
+parseTernaryExpr p =
+  p
+    <*> (space1 >> pieParser)
+    <*> (space1 >> pieParser)
+    <*> (space1 >> pieParser)
 
 parseLambdaExpr :: Parser Expr
 parseLambdaExpr =
   (Lambda <$ string "lambda")
-    <*> (spaces >> parens parseVarName)
-    <*> (spaces >> pieParser)
+    <*> (space1 >> parens parseVarName)
+    <*> (space1 >> pieParser)
 
 parsePieExpr :: Parser Expr
 parsePieExpr =
@@ -55,6 +63,7 @@ parsePieExpr =
     <|> parseUnaryExpr (Add1 <$ string "add1")
     <|> parseTernaryExpr (WhichNat <$ string "which-Nat")
     <|> parseTernaryExpr (IterNat <$ string "iter-Nat")
+    <|> parseTernaryExpr (IterNat <$ string "rec-Nat")
     <|> parseLambdaExpr
 
 pieParser :: Parser Expr
@@ -66,5 +75,5 @@ pieParser =
     <|> (Var <$> parseVarName)
     <|> parens parsePieExpr
 
-parsePie :: String -> Either ParseError Expr
+parsePie :: Text -> Either PieParseError Expr
 parsePie = parse pieParser "<lit>"

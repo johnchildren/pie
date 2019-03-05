@@ -36,6 +36,7 @@ data Expr = The Expr Expr
          | Add1 Expr
          | WhichNat Expr Expr Expr
          | IterNat Expr Expr Expr
+         | RecNat Expr Expr Expr
         deriving (Show, Eq)
 
 makeBaseFunctor ''Expr

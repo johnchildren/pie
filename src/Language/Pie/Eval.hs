@@ -60,7 +60,12 @@ evalPie env = cata eval'
   eval' (IterNatF (Right Zero) base _) = base
   eval' (IterNatF (Right (Add1 n)) base step) =
     ((\b s -> App s (IterNat n b s)) <$> base <*> step) >>= evalPie env
-  eval' IterNatF{} = Left (TypeError "can't iter-Nat")
+  eval' IterNatF{}                    = Left (TypeError "can't iter-Nat")
+  -- rec-Nat
+  eval' (RecNatF (Right Zero) base _) = base
+  eval' (RecNatF (Right (Add1 n)) base step) =
+    ((\b s -> App (App s n) (RecNat n b s)) <$> base <*> step) >>= evalPie env
+  eval' RecNatF{} = Left (TypeError "can't iter-Nat")
 
 apply :: VarName -> Expr -> Expr -> Expr
 apply v body applied = cata apply' body
@@ -82,3 +87,4 @@ apply v body applied = cata apply' body
   apply' (AppF    e1  e2    ) = App e1 e2 -- TODO: don't think this should ever happen?
   apply' (WhichNatF e1 e2 e3) = WhichNat e1 e2 e3
   apply' (IterNatF  e1 e2 e3) = IterNat e1 e2 e3
+  apply' (RecNatF   e1 e2 e3) = RecNat e1 e2 e3

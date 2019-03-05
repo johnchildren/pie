@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main
   ( main
   )
@@ -7,6 +9,7 @@ where
 import           System.IO                                ( hFlush
                                                           , stdout
                                                           )
+import qualified Data.Text.IO                  as Text
 import           Language.Pie.Parse                       ( parsePie )
 import           Language.Pie.Print                       ( printPie )
 import           Language.Pie.Eval                        ( emptyEnv
@@ -17,17 +20,17 @@ import           Language.Pie.Eval                        ( emptyEnv
 
 main :: IO ()
 main = do
-  putStrLn "Welcome to lazyfuck! Each line will be evaluated as a script!"
+  putStrLn "Welcome to pie! Each line will be evaluated as an expr!"
   go
  where
   go :: IO ()
   go = do
-    putStr "pie)) "
+    Text.putStr "pie)) "
     hFlush stdout
-    line <- getLine
+    line <- Text.getLine
     case parsePie line of
       Right expr -> case evalPie emptyEnv expr of
-        Right evald -> putStrLn (printPie evald)
+        Right evald -> Text.putStrLn (printPie evald)
         Left  err   -> print err
       Left err -> print err
     putStrLn ""
