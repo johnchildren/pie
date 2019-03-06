@@ -21,16 +21,29 @@ data Judgement = Yes
 
 instance Semigroup Judgement where
   (<>) Yes             Yes             = Yes
-  (<>) No              _               = No
-  (<>) _               No              = No
   (<>) t@(TypeError _) _               = t
   (<>) _               t@(TypeError _) = t
+  (<>) No              _               = No
+  (<>) _               No              = No
+
+
+{-
+typeOf :: Env -> Expr -> Either TypeError Expr
+typeOf _   (AtomData _) = Right AtomType
+typeOf _   Zero         = Right Nat
+typeOf _   AtomType     = Right Universe
+typeOf _   Nat          = Right Universe
+typeOf env (Cons e1 e2) = Pair <$> typeOf env e1 <*> typeOf env e2
+typeOf _   (Pair _  _ ) = Right Universe
+-}
 
 -- | First form of judgement
 -- ______ is a ______.
 judgement1 :: Env -> Expr -> Expr -> Judgement
 judgement1 _ (AtomData _) AtomType = Yes
 judgement1 _ Zero         Nat      = Yes
+judgement1 _ AtomType     Universe = Yes
+judgement1 _ Nat          Universe = Yes
 judgement1 env (Cons d1 d2) (Pair t1 t2) =
   judgement1 env d1 t1 <> judgement1 env d2 t2
 judgement1 env e1@(Car _) e2 = case evalPie env e1 of
@@ -98,6 +111,7 @@ judgement2 _ _ _ _ = No
 -- _____ is a type.
 judgement3 :: Env -> Expr -> Judgement
 judgement3 _   AtomType      = Yes
+judgement3 _   Universe      = Yes
 judgement3 _   (   Pair _ _) = Yes -- Not strictly true
 judgement3 env e1@(Car _   ) = case evalPie env e1 of
   Right x   -> judgement3 env x
@@ -114,6 +128,7 @@ judgement3 _ _ = No
 -- ______ and ______ are the same type.
 judgement4 :: Env -> Expr -> Expr -> Judgement
 judgement4 _ AtomType AtomType = Yes
+judgement4 _ Universe Universe = Yes
 judgement4 env (Pair p1 p2) (Pair p3 p4) =
   judgement4 env p1 p3 <> judgement4 env p2 p4
 judgement4 env e1@(Car _) e2 = case evalPie env e1 of

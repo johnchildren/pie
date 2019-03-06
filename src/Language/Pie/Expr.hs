@@ -24,11 +24,12 @@ data Expr = The Expr Expr
          | Var VarName
          | AtomType
          | AtomData AtomID
-         | Pair Expr Expr
          | Cons Expr Expr
+         | Pair Expr Expr
          | Car Expr
          | Cdr Expr
-         | Arrow Expr Expr
+         | Pie VarName Expr Expr
+         | Arrow Expr Expr -- TODO: no arrows in core pie
          | Lambda VarName Expr
          | App Expr Expr
          | Nat
@@ -37,6 +38,7 @@ data Expr = The Expr Expr
          | WhichNat Expr Expr Expr
          | IterNat Expr Expr Expr
          | RecNat Expr Expr Expr
+         | Universe
         deriving (Show, Eq)
 
 makeBaseFunctor ''Expr

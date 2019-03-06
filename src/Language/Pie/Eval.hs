@@ -46,7 +46,11 @@ evalPie env = cata eval'
   eval' ZeroF                      = Right Zero
   eval' (Add1F e1@(Right Zero))    = Add1 <$> e1
   eval' (Add1F e1@(Right (Add1 _))) = Add1 <$> e1
-  eval' (Add1F e)                  = Left (TypeError ("can't add " ++ show e))
+  eval' (Add1F e1@(Right (Var _))) = Add1 <$> e1
+  eval' (Add1F _)                  = Left (TypeError "can't add")
+
+  -- functions
+  eval' (PieF var e1 e2)           = Pie var <$> e1 <*> e2
   eval' (ArrowF e1 e2)             = Arrow <$> e1 <*> e2
   eval' (LambdaF var expr)         = Lambda var <$> expr
   eval' (AppF (Right (Lambda v body)) applied) = apply v body <$> applied
@@ -65,7 +69,8 @@ evalPie env = cata eval'
   eval' (RecNatF (Right Zero) base _) = base
   eval' (RecNatF (Right (Add1 n)) base step) =
     ((\b s -> App (App s n) (RecNat n b s)) <$> base <*> step) >>= evalPie env
-  eval' RecNatF{} = Left (TypeError "can't iter-Nat")
+  eval' RecNatF{} = Left (TypeError "can't rec-Nat")
+  eval' UniverseF = Right Universe
 
 apply :: VarName -> Expr -> Expr -> Expr
 apply v body applied = cata apply' body
@@ -82,9 +87,11 @@ apply v body applied = cata apply' body
   apply' (CarF  e1          ) = Car e1
   apply' (CdrF  e1          ) = Cdr e1
   apply' (Add1F e1          ) = Add1 e1
+  apply' (PieF var e1 e2    ) = Pie var e1 e2
   apply' (ArrowF  e1  e2    ) = Arrow e1 e2
   apply' (LambdaF var expr  ) = Lambda var expr
   apply' (AppF    e1  e2    ) = App e1 e2 -- TODO: don't think this should ever happen?
   apply' (WhichNatF e1 e2 e3) = WhichNat e1 e2 e3
   apply' (IterNatF  e1 e2 e3) = IterNat e1 e2 e3
   apply' (RecNatF   e1 e2 e3) = RecNat e1 e2 e3
+  apply' UniverseF            = Universe

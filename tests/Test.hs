@@ -146,7 +146,7 @@ spec = do
                      )
         `shouldBe` Right (mkAtom "more")
 
-      xit "each add1 in the value of target is replaced by a step"
+      it "each add1 in the value of target is replaced by a step"
         $          evalPie
                      emptyEnv
                      (IterNat (Add1 (Add1 (Add1 (Add1 (Add1 Zero)))))
@@ -161,17 +161,17 @@ spec = do
       it "evaluates to base when target is zero"
         $          evalPie
                      emptyEnv
-                     (WhichNat
+                     (RecNat
                        Zero
                        (mkAtom "naught")
                        (Lambda (VarName "n") (Lambda (VarName "i") (mkAtom "more")))
                      )
         `shouldBe` Right (mkAtom "naught")
 
-      xit "evaluates to (step n (iter-Nat n base step)) when target is (add1 n)"
+      it "evaluates to (step n (iter-Nat n base step)) when target is (add1 n)"
         $          evalPie
                      emptyEnv
-                     (WhichNat
+                     (RecNat
                        (Add1 (Add1 (Add1 (Add1 Zero))))
                        (mkAtom "naught")
                        (Lambda (VarName "n") (Lambda (VarName "i") (mkAtom "more")))

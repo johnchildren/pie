@@ -32,27 +32,30 @@ printBinaryExpr tok e1 e2 = "(" <> tok <+> e1 <+> e2 <> ")"
 printTernaryExpr :: Doc a -> Doc a -> Doc a -> Doc a -> Doc a
 printTernaryExpr tok e1 e2 e3 = "(" <> tok <+> e1 <+> e2 <+> e3 <> ")"
 
-printPie :: Expr -> Text
-printPie = renderStrict . layoutPretty defaultLayoutOptions . cata printPie'
-
 type Algebra t a = Base t a -> a
 
-printPie' :: Algebra Expr (Doc a)
-printPie' (TheF e1 e2      )     = printBinaryExpr "the" e1 e2
-printPie' (VarF (VarName v))     = pretty v
-printPie' AtomTypeF              = "Atom"
-printPie' (AtomDataF (AtomID s)) = "'" <> pretty s
-printPie' (PairF e1 e2         ) = printBinaryExpr "Pair" e1 e2
-printPie' (ConsF e1 e2         ) = printBinaryExpr "cons" e1 e2
-printPie' (CarF e1             ) = printUnaryExpr "car" e1
-printPie' (CdrF e1             ) = printUnaryExpr "cdr" e1
-printPie' (ArrowF e1 e2        ) = printBinaryExpr "->" e1 e2
-printPie' (LambdaF (VarName v) e) =
-  printBinaryExpr "lambda" ("(" <> pretty v <> ")") e
-printPie' (AppF e1 e2)         = "(" <> e1 <+> e2 <> ")"
-printPie' NatF                 = "Nat"
-printPie' ZeroF                = "zero"
-printPie' (Add1F e1          ) = printUnaryExpr "add1" e1
-printPie' (WhichNatF e1 e2 e3) = printTernaryExpr "which-Nat" e1 e2 e3
-printPie' (IterNatF  e1 e2 e3) = printTernaryExpr "iter-Nat" e1 e2 e3
-printPie' (RecNatF   e1 e2 e3) = printTernaryExpr "rec-Nat" e1 e2 e3
+printPie :: Expr -> Text
+printPie = renderStrict . layoutPretty defaultLayoutOptions . cata printPie'
+ where
+  printPie' :: Algebra Expr (Doc a)
+  printPie' (TheF e1 e2      )     = printBinaryExpr "the" e1 e2
+  printPie' (VarF (VarName v))     = pretty v
+  printPie' AtomTypeF              = "Atom"
+  printPie' (AtomDataF (AtomID s)) = "'" <> pretty s
+  printPie' (PairF e1 e2         ) = printBinaryExpr "Pair" e1 e2
+  printPie' (ConsF e1 e2         ) = printBinaryExpr "cons" e1 e2
+  printPie' (CarF e1             ) = printUnaryExpr "car" e1
+  printPie' (CdrF e1             ) = printUnaryExpr "cdr" e1
+  printPie' (ArrowF e1 e2        ) = printBinaryExpr "->" e1 e2
+  printPie' (LambdaF (VarName v) e) =
+    printBinaryExpr "lambda" ("(" <> pretty v <> ")") e
+  printPie' (PieF (VarName v) e1 e2) =
+    printBinaryExpr "pie" ("(" <> pretty v <+> e1 <> ")") e2
+  printPie' (AppF e1 e2)         = "(" <> e1 <+> e2 <> ")"
+  printPie' NatF                 = "Nat"
+  printPie' ZeroF                = "zero"
+  printPie' (Add1F e1          ) = printUnaryExpr "add1" e1
+  printPie' (WhichNatF e1 e2 e3) = printTernaryExpr "which-Nat" e1 e2 e3
+  printPie' (IterNatF  e1 e2 e3) = printTernaryExpr "iter-Nat" e1 e2 e3
+  printPie' (RecNatF   e1 e2 e3) = printTernaryExpr "rec-Nat" e1 e2 e3
+  printPie' UniverseF            = "Universe"

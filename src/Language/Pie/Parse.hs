@@ -73,8 +73,9 @@ pieParser =
     <|> (AtomData <$> atomID)
     <|> (Zero <$ string "zero")
     <|> (Nat <$ string "Nat")
+    <|> (Universe <$ string "Universe")
     <|> (Var <$> parseVarName)
     <|> parens parsePieExpr
 
 parsePie :: Text -> Either PieParseError Expr
-parsePie = parse pieParser "<lit>"
+parsePie = parse (pieParser >>= \x -> eof >> pure x) "<lit>"
