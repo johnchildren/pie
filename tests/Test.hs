@@ -42,7 +42,7 @@ genExprs = Gen.recursive
   , Gen.subterm genExprs Car
   , Gen.subterm genExprs Cdr
   , Gen.subterm genExprs Add1
-  --, Gen.subterm2 genExprs genExprs App
+  , Gen.subterm2 genExprs genExprs App
   , Gen.subterm3 genExprs genExprs genExprs WhichNat
   , Gen.subterm3 genExprs genExprs genExprs IterNat
   , Gen.subterm3 genExprs genExprs genExprs RecNat

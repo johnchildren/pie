@@ -52,6 +52,9 @@ parseLambdaExpr =
     <*> (space1 >> parens parseVarName)
     <*> (space1 >> pieParser)
 
+parseAppExpr :: Parser Expr
+parseAppExpr = App <$> pieParser <*> (space1 >> pieParser)
+
 parsePieExpr :: Parser Expr
 parsePieExpr =
   parseBinaryExpr (The <$ string "the")
@@ -67,6 +70,7 @@ parsePieExpr =
     <|> parseTernaryExpr (IterNat <$ string "iter-Nat")
     <|> parseTernaryExpr (RecNat <$ string "rec-Nat")
     <|> parseLambdaExpr
+    <|> parseAppExpr
 
 pieParser :: Parser Expr
 pieParser =
