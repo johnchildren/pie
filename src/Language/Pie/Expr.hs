@@ -12,12 +12,13 @@ module Language.Pie.Expr
   )
 where
 
+import           Data.Text                                ( Text )
 import           Data.Functor.Foldable.TH                 ( makeBaseFunctor )
 
-newtype AtomID = AtomID String
+newtype AtomID = AtomID Text
     deriving (Show, Eq)
 
-newtype VarName = VarName String
+newtype VarName = VarName Text
     deriving (Show, Eq)
 
 data Expr = The Expr Expr

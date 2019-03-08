@@ -7,6 +7,7 @@ module Language.Pie.Parse
 where
 
 import           Data.Void                                ( Void )
+import qualified Data.Text                     as Text
 import           Data.Text                                ( Text )
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
@@ -28,10 +29,10 @@ atomID :: Parser AtomID
 atomID = do
   _   <- char '\''
   val <- some (letterChar <|> char '-')
-  pure $ AtomID val
+  pure $ AtomID (Text.pack val)
 
 parseVarName :: Parser VarName
-parseVarName = VarName <$> some letterChar
+parseVarName = VarName . Text.pack <$> some letterChar
 
 parseUnaryExpr :: Parser (Expr -> Expr) -> Parser Expr
 parseUnaryExpr p = p <*> (space1 >> pieParser)
@@ -59,16 +60,14 @@ parsePieExpr :: Parser Expr
 parsePieExpr =
   parseBinaryExpr (The <$ string "the")
     <|> parseBinaryExpr (Pair <$ string "Pair")
-    <|> (  string "c"
-        >> (   parseBinaryExpr (Cons <$ string "ons")
-           <|> parseUnaryExpr (Car <$ string "ar")
-           <|> parseUnaryExpr (Cdr <$ string "dr")
-           )
-        )
+    <|> parseBinaryExpr (Cons <$ string "cons")
+    <|> parseUnaryExpr (Car <$ string "car")
+    <|> parseUnaryExpr (Cdr <$ string "cdr")
     <|> parseUnaryExpr (Add1 <$ string "add1")
     <|> parseTernaryExpr (WhichNat <$ string "which-Nat")
     <|> parseTernaryExpr (IterNat <$ string "iter-Nat")
     <|> parseTernaryExpr (RecNat <$ string "rec-Nat")
+    <|> parseBinaryExpr (Arrow <$ string "->")
     <|> parseLambdaExpr
     <|> parseAppExpr
 

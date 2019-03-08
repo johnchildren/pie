@@ -5,6 +5,7 @@ module Main
   )
 where
 
+import           Data.Text                                ( Text )
 import           Hedgehog                          hiding ( Var )
 import qualified Hedgehog.Gen                  as Gen
 import qualified Hedgehog.Range                as Range
@@ -28,10 +29,18 @@ import           Language.Pie.Expr                        ( AtomID(..)
                                                           )
 
 
+genVarName :: Gen VarName
+genVarName = VarName <$> Gen.text (Range.constant 1 10) Gen.alpha
+
+genAtomID :: Gen AtomID
+genAtomID = AtomID <$> Gen.text (Range.constant 1 10) Gen.alpha
+
 genExprs :: Gen Expr
 genExprs = Gen.recursive
   Gen.choice
-  [ Gen.constant AtomType
+  [ Var <$> genVarName
+  , Gen.constant AtomType
+  , AtomData <$> genAtomID
   , Gen.constant Nat
   , Gen.constant Zero
   , Gen.constant Universe
@@ -41,8 +50,13 @@ genExprs = Gen.recursive
   , Gen.subterm2 genExprs genExprs Pair
   , Gen.subterm genExprs Car
   , Gen.subterm genExprs Cdr
-  , Gen.subterm genExprs Add1
+--  , Gen.subtermM2 genExprs
+--                  genExprs
+--                  (\x y -> Pie <$> genVarName <*> pure x <*> pure y)
+  , Gen.subterm2 genExprs genExprs Arrow
+  , Gen.subtermM genExprs (\x -> Lambda <$> genVarName <*> pure x)
   , Gen.subterm2 genExprs genExprs App
+  , Gen.subterm genExprs Add1
   , Gen.subterm3 genExprs genExprs genExprs WhichNat
   , Gen.subterm3 genExprs genExprs genExprs IterNat
   , Gen.subterm3 genExprs genExprs genExprs RecNat
@@ -64,35 +78,6 @@ main = do
 
 spec :: Spec
 spec = do
-  describe "Parsing pie expressions" $ do
-    it "can parse the type Atom" $ parsePie "Atom" `shouldBe` Right AtomType
-
-    it "can parse an Atom" $ parsePie "'courgette" `shouldBe` Right
-      (mkAtom "courgette")
-
-    it "can parse a Pair of two Atoms"
-      $          parsePie "(Pair Atom Atom)"
-      `shouldBe` Right (Pair AtomType AtomType)
-
-    it "can parse a Lambda Expression"
-      $          parsePie "(lambda (x) (cons x 'courgette))"
-      `shouldBe` Right
-                   (Lambda (VarName "x") (Cons (mkVar "x") (mkAtom "courgette"))
-                   )
-
-  describe "Printing pie expressions" $ do
-    it "can print a Cons"
-      $          printPie (Cons (mkAtom "courgette") (mkAtom "baguette"))
-      `shouldBe` "(cons 'courgette 'baguette)"
-
-    it "can print a Pair"
-      $          printPie (Pair AtomType AtomType)
-      `shouldBe` "(Pair Atom Atom)"
-
-    it "can print four"
-      $          printPie (Add1 (Add1 (Add1 (Add1 Zero))))
-      `shouldBe` "(add1 (add1 (add1 (add1 zero))))"
-
   describe "Evaluating pie expression" $ do
     describe "normalisation" $ do
       it "normalises expressions"
@@ -312,8 +297,8 @@ spec = do
                             AtomType
       `shouldBe` Yes
 
-mkAtom :: String -> Expr
+mkAtom :: Text -> Expr
 mkAtom = AtomData . AtomID
 
-mkVar :: String -> Expr
+mkVar :: Text -> Expr
 mkVar = Var . VarName
