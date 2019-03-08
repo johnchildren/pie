@@ -5,8 +5,12 @@ module Main
   )
 where
 
+import           Hedgehog                          hiding ( Var )
+import qualified Hedgehog.Gen                  as Gen
+import qualified Hedgehog.Range                as Range
 import           Test.Tasty
 import           Test.Tasty.Hspec
+import           Test.Tasty.Hedgehog                      ( testProperty )
 import           Language.Pie.Parse                       ( parsePie )
 import           Language.Pie.Print                       ( printPie )
 import           Language.Pie.Eval                        ( evalPie
@@ -23,10 +27,40 @@ import           Language.Pie.Expr                        ( AtomID(..)
                                                           , Expr(..)
                                                           )
 
+
+genExprs :: Gen Expr
+genExprs = Gen.recursive
+  Gen.choice
+  [ Gen.constant AtomType
+  , Gen.constant Nat
+  , Gen.constant Zero
+  , Gen.constant Universe
+  ]
+  [ Gen.subterm2 genExprs genExprs The
+  , Gen.subterm2 genExprs genExprs Cons
+  , Gen.subterm2 genExprs genExprs Pair
+  , Gen.subterm genExprs Car
+  , Gen.subterm genExprs Cdr
+  , Gen.subterm genExprs Add1
+  --, Gen.subterm2 genExprs genExprs App
+  , Gen.subterm3 genExprs genExprs genExprs WhichNat
+  , Gen.subterm3 genExprs genExprs genExprs IterNat
+  , Gen.subterm3 genExprs genExprs genExprs RecNat
+  ]
+
+
+prop_parse_print_trip :: Property
+prop_parse_print_trip = withTests 1000 . property $ do
+  exprs <- forAll genExprs
+  tripping exprs printPie parsePie
+
 main :: IO ()
 main = do
   mySpec <- testSpec "specs" spec
-  defaultMain (testGroup "tests" [localOption Success mySpec])
+  defaultMain
+    (testGroup "tests"
+               [mySpec, testProperty "parse print" prop_parse_print_trip]
+    )
 
 spec :: Spec
 spec = do

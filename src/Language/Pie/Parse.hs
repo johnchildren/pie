@@ -54,7 +54,8 @@ parseLambdaExpr =
 
 parsePieExpr :: Parser Expr
 parsePieExpr =
-  parseBinaryExpr (Pair <$ string "Pair")
+  parseBinaryExpr (The <$ string "the")
+    <|> parseBinaryExpr (Pair <$ string "Pair")
     <|> (  string "c"
         >> (   parseBinaryExpr (Cons <$ string "ons")
            <|> parseUnaryExpr (Car <$ string "ar")
@@ -64,7 +65,7 @@ parsePieExpr =
     <|> parseUnaryExpr (Add1 <$ string "add1")
     <|> parseTernaryExpr (WhichNat <$ string "which-Nat")
     <|> parseTernaryExpr (IterNat <$ string "iter-Nat")
-    <|> parseTernaryExpr (IterNat <$ string "rec-Nat")
+    <|> parseTernaryExpr (RecNat <$ string "rec-Nat")
     <|> parseLambdaExpr
 
 pieParser :: Parser Expr
@@ -78,4 +79,4 @@ pieParser =
     <|> parens parsePieExpr
 
 parsePie :: Text -> Either PieParseError Expr
-parsePie = parse (pieParser >>= \x -> eof >> pure x) "<lit>"
+parsePie = parse (pieParser <* eof) "<lit>"
