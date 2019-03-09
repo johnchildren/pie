@@ -21,9 +21,8 @@ import           Language.Pie.Parse                       ( parsePie
                                                           , parseErrorPretty
                                                           )
 import           Language.Pie.Print                       ( printPie )
-import           Language.Pie.Eval                        ( emptyEnv
-                                                          , evalPie
-                                                          )
+import           Language.Pie.Environment                 ( emptyEnv )
+import           Language.Pie.Eval                        ( evalPie )
 
 
 
