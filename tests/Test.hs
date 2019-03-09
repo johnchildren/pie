@@ -14,9 +14,8 @@ import           Test.Tasty.Hspec
 import           Test.Tasty.Hedgehog                      ( testProperty )
 import           Language.Pie.Parse                       ( parsePie )
 import           Language.Pie.Print                       ( printPie )
-import           Language.Pie.Eval                        ( evalPie
-                                                          , emptyEnv
-                                                          )
+import           Language.Pie.Environment                 ( emptyEnv )
+import           Language.Pie.Eval                        ( evalPie )
 import           Language.Pie.Judgement                   ( judgement1
                                                           , judgement2
                                                           , judgement3

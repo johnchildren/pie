@@ -15,6 +15,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Language.Pie.Expr
+                     , Language.Pie.Environment
                      , Language.Pie.Parse
                      , Language.Pie.Print
                      , Language.Pie.Eval

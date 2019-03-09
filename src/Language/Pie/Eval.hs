@@ -1,16 +1,14 @@
 module Language.Pie.Eval
   ( TypeError
   , evalPie
-  , Env
-  , emptyEnv
   )
 where
 
-import qualified Data.Map                      as Map
 import           Data.Functor.Foldable                    ( Base
                                                           , cata
                                                           )
-import           Language.Pie.Expr                        ( VarName(..)
+import           Language.Pie.Environment                 ( Env )
+import           Language.Pie.Expr                        ( VarName
                                                           , Expr(..)
                                                           , ExprF(..)
                                                           )
@@ -20,11 +18,6 @@ newtype TypeError = TypeError String
   deriving (Show, Eq)
 
 type Algebra t a = Base t a -> a
-
-type Env = Map.Map VarName Expr
-
-emptyEnv :: Env
-emptyEnv = Map.empty
 
 evalPie :: Env -> Expr -> Either TypeError Expr
 evalPie env = cata eval'
