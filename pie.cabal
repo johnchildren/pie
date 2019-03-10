@@ -16,7 +16,6 @@ library
   hs-source-dirs:      src
   exposed-modules:     Language.Pie.Symbols
                      , Language.Pie.Expr
-                     , Language.Pie.Context
                      , Language.Pie.Environment
                      , Language.Pie.Values
                      , Language.Pie.Parse

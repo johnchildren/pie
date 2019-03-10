@@ -3,28 +3,17 @@ module Language.Pie.Values
   , Value(..)
   , Neutral(..)
   , Normal(..)
+  , Env
   )
 where
 
+import           Language.Pie.Environment                 ( Env )
 import           Language.Pie.Symbols                     ( Symbol
                                                           , VarName
                                                           )
 import           Language.Pie.Expr                        ( Expr )
-import           Data.Maybe                               ( Maybe )
-import qualified Data.Map                      as Map
 
-type Env = Map.Map VarName Value
-
-empty :: Env
-empty = Map.empty
-
-lookup :: VarName -> Env -> Maybe Value
-lookup = Map.lookup
-
-insert :: VarName -> Value -> Env -> Env
-insert = Map.insert
-
-data Closure = CLOS Env VarName Expr
+data Closure = CLOS (Env Value) VarName Expr
 
 data Value = PI Value Closure
            | LAM Closure

@@ -8,7 +8,7 @@ import           Data.Functor.Foldable                    ( Base
                                                           , cata
                                                           )
 import           Language.Pie.Symbols                     ( VarName(..) )
-import           Language.Pie.Context                     ( Context )
+import           Language.Pie.Environment                 ( Env )
 import           Language.Pie.Expr                        ( Expr(..)
                                                           , ExprF(..)
                                                           )
@@ -19,7 +19,7 @@ newtype TypeError = TypeError String
 
 type Algebra t a = Base t a -> a
 
-evalPie :: Context -> Expr -> Either TypeError Expr
+evalPie :: Env Expr -> Expr -> Either TypeError Expr
 evalPie rho = cata eval'
  where
   eval' :: Algebra Expr (Either TypeError Expr)

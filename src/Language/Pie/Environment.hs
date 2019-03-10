@@ -11,15 +11,14 @@ where
 import           Data.Maybe                               ( Maybe )
 import qualified Data.Map                      as Map
 import           Language.Pie.Symbols                     ( VarName )
-import           Language.Pie.Values                      ( Value )
 
-type Env = Map.Map VarName Value
+type Env a = Map.Map VarName a
 
-empty :: Env
+empty :: Env a
 empty = Map.empty
 
-lookup :: VarName -> Env -> Maybe Value
+lookup :: VarName -> Env a -> Maybe a
 lookup = Map.lookup
 
-insert :: VarName -> Value -> Env -> Env
+insert :: VarName -> a -> Env a -> Env a
 insert = Map.insert

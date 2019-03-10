@@ -10,7 +10,7 @@ module Language.Pie.Judgement
 where
 
 import           Language.Pie.Expr                        ( Expr(..) )
-import           Language.Pie.Context                     ( Context )
+import           Language.Pie.Environment                 ( Env )
 import           Language.Pie.Eval                        ( evalPie
                                                           , TypeError
                                                           )
@@ -30,7 +30,7 @@ instance Semigroup Judgement where
 
 
 {-
-typeOf :: Context -> Expr -> Either TypeError Expr
+typeOf :: Env -> Expr -> Either TypeError Expr
 typeOf _   (Quote _) = Right Atom
 typeOf _   Zero         = Right Nat
 typeOf _   Atom     = Right Universe
@@ -41,7 +41,7 @@ typeOf _   (Pair _  _ ) = Right Universe
 
 -- | First form of judgement
 -- ______ is a ______.
-judgement1 :: Context -> Expr -> Expr -> Judgement
+judgement1 :: Env Expr -> Expr -> Expr -> Judgement
 judgement1 _ (Quote _) Atom     = Yes
 judgement1 _ Zero      Nat      = Yes
 judgement1 _ Atom      Universe = Yes
@@ -67,7 +67,7 @@ judgement1 env (evalPie env -> Left err) _  = TypeError err
 
 -- | Second form of judgement
 -- ______ is the same ______ as ______.
-judgement2 :: Context -> Expr -> Expr -> Expr -> Judgement
+judgement2 :: Env Expr -> Expr -> Expr -> Expr -> Judgement
 judgement2 _   (Quote id1) Atom (Quote id2) = if id1 == id2 then Yes else No
 judgement2 _   Zero        Nat  Zero        = Yes
 judgement2 env (Add1 e1)   Nat  (Add1 e2)   = judgement2 env e1 Nat e2
@@ -104,7 +104,7 @@ judgement2 _ _ _ _ = No
 
 -- | Third form of judgement
 -- _____ is a type.
-judgement3 :: Context -> Expr -> Judgement
+judgement3 :: Env Expr -> Expr -> Judgement
 judgement3 _   Atom                      = Yes
 judgement3 _   (Quote _)                 = No
 judgement3 _   Universe                  = Yes
@@ -116,7 +116,7 @@ judgement3 env (evalPie env -> Left err) = TypeError err
 
 -- | Fourth form of judgement
 -- ______ and ______ are the same type.
-judgement4 :: Context -> Expr -> Expr -> Judgement
+judgement4 :: Env Expr -> Expr -> Expr -> Judgement
 judgement4 _ Atom     Atom     = Yes
 judgement4 _ Universe Universe = Yes
 judgement4 env (Pair e1 e2) (Pair e3 e4) =
