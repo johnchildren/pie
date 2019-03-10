@@ -7,9 +7,9 @@ where
 import           Data.Functor.Foldable                    ( Base
                                                           , cata
                                                           )
-import           Language.Pie.Environment                 ( Env )
-import           Language.Pie.Expr                        ( VarName
-                                                          , Expr(..)
+import           Language.Pie.Symbols                     ( VarName(..) )
+import           Language.Pie.Context                     ( Context )
+import           Language.Pie.Expr                        ( Expr(..)
                                                           , ExprF(..)
                                                           )
 
@@ -19,14 +19,14 @@ newtype TypeError = TypeError String
 
 type Algebra t a = Base t a -> a
 
-evalPie :: Env -> Expr -> Either TypeError Expr
-evalPie env = cata eval'
+evalPie :: Context -> Expr -> Either TypeError Expr
+evalPie rho = cata eval'
  where
   eval' :: Algebra Expr (Either TypeError Expr)
   eval' (TheF e1 e2  )             = The <$> e1 <*> e2 --TODO: this should be a type check
   eval' (VarF varname)             = Right (Var varname)
-  eval' AtomTypeF                  = Right AtomType
-  eval' (AtomDataF atomID        ) = Right (AtomData atomID)
+  eval' AtomF                      = Right Atom
+  eval' (QuoteF symbol           ) = Right (Quote symbol)
   eval' (ConsF e1 e2             ) = Cons <$> e1 <*> e2
   eval' (PairF e1 e2             ) = Pair <$> e1 <*> e2
   eval' (CarF (Right (Cons v1 _))) = Right v1
@@ -51,17 +51,17 @@ evalPie env = cata eval'
   -- which-Nat
   eval' (WhichNatF (Right Zero) base _) = base
   eval' (WhichNatF (Right (Add1 n)) _ step) =
-    flip App n <$> step >>= evalPie env
+    flip App n <$> step >>= evalPie rho
   eval' WhichNatF{}                    = Left (TypeError "can't which-Nat")
   -- iter-Nat
   eval' (IterNatF (Right Zero) base _) = base
   eval' (IterNatF (Right (Add1 n)) base step) =
-    ((\b s -> App s (IterNat n b s)) <$> base <*> step) >>= evalPie env
+    ((\b s -> App s (IterNat n b s)) <$> base <*> step) >>= evalPie rho
   eval' IterNatF{}                    = Left (TypeError "can't iter-Nat")
   -- rec-Nat
   eval' (RecNatF (Right Zero) base _) = base
   eval' (RecNatF (Right (Add1 n)) base step) =
-    ((\b s -> App (App s n) (RecNat n b s)) <$> base <*> step) >>= evalPie env
+    ((\b s -> App (App s n) (RecNat n b s)) <$> base <*> step) >>= evalPie rho
   eval' RecNatF{} = Left (TypeError "can't rec-Nat")
   eval' UniverseF = Right Universe
 
@@ -71,8 +71,8 @@ apply v body applied = cata apply' body
   apply' :: Algebra Expr Expr
   apply' (TheF e1 e2  )       = The e1 e2
   apply' (VarF varname)       = if v == varname then applied else Var varname
-  apply' AtomTypeF            = AtomType
-  apply' (AtomDataF atomID)   = AtomData atomID
+  apply' AtomF                = Atom
+  apply' (QuoteF atomID)      = Quote atomID
   apply' ZeroF                = Zero
   apply' NatF                 = Nat
   apply' (ConsF e1 e2       ) = Cons e1 e2

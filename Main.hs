@@ -21,7 +21,7 @@ import           Language.Pie.Parse                       ( parsePie
                                                           , parseErrorPretty
                                                           )
 import           Language.Pie.Print                       ( printPie )
-import           Language.Pie.Environment                 ( emptyEnv )
+import qualified Language.Pie.Context          as Context
 import           Language.Pie.Eval                        ( evalPie )
 
 
@@ -31,7 +31,7 @@ type Repl a = HaskelineT IO a
 
 cmd :: (MonadIO m) => Command (HaskelineT m)
 cmd input = liftIO $ case parsePie (Text.pack input) of
-  Right expr -> case evalPie emptyEnv expr of
+  Right expr -> case evalPie Context.empty expr of
     Right evald -> Text.putStrLn (printPie evald)
     Left  err   -> print err
   Left err -> putStrLn $ parseErrorPretty err

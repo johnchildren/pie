@@ -10,7 +10,7 @@ module Language.Pie.Judgement
 where
 
 import           Language.Pie.Expr                        ( Expr(..) )
-import           Language.Pie.Environment                 ( Env )
+import           Language.Pie.Context                     ( Context )
 import           Language.Pie.Eval                        ( evalPie
                                                           , TypeError
                                                           )
@@ -30,10 +30,10 @@ instance Semigroup Judgement where
 
 
 {-
-typeOf :: Env -> Expr -> Either TypeError Expr
-typeOf _   (AtomData _) = Right AtomType
+typeOf :: Context -> Expr -> Either TypeError Expr
+typeOf _   (Quote _) = Right Atom
 typeOf _   Zero         = Right Nat
-typeOf _   AtomType     = Right Universe
+typeOf _   Atom     = Right Universe
 typeOf _   Nat          = Right Universe
 typeOf env (Cons e1 e2) = Pair <$> typeOf env e1 <*> typeOf env e2
 typeOf _   (Pair _  _ ) = Right Universe
@@ -41,11 +41,11 @@ typeOf _   (Pair _  _ ) = Right Universe
 
 -- | First form of judgement
 -- ______ is a ______.
-judgement1 :: Env -> Expr -> Expr -> Judgement
-judgement1 _ (AtomData _) AtomType = Yes
-judgement1 _ Zero         Nat      = Yes
-judgement1 _ AtomType     Universe = Yes
-judgement1 _ Nat          Universe = Yes
+judgement1 :: Context -> Expr -> Expr -> Judgement
+judgement1 _ (Quote _) Atom     = Yes
+judgement1 _ Zero      Nat      = Yes
+judgement1 _ Atom      Universe = Yes
+judgement1 _ Nat       Universe = Yes
 judgement1 env (Cons d1 d2) (Pair t1 t2) =
   judgement1 env d1 t1 <> judgement1 env d2 t2
 judgement1 env e1 e2@(Car _) = case evalPie env e2 of
@@ -67,11 +67,10 @@ judgement1 env (evalPie env -> Left err) _  = TypeError err
 
 -- | Second form of judgement
 -- ______ is the same ______ as ______.
-judgement2 :: Env -> Expr -> Expr -> Expr -> Judgement
-judgement2 _ (AtomData id1) AtomType (AtomData id2) =
-  if id1 == id2 then Yes else No
-judgement2 _   Zero      Nat Zero      = Yes
-judgement2 env (Add1 e1) Nat (Add1 e2) = judgement2 env e1 Nat e2
+judgement2 :: Context -> Expr -> Expr -> Expr -> Judgement
+judgement2 _   (Quote id1) Atom (Quote id2) = if id1 == id2 then Yes else No
+judgement2 _   Zero        Nat  Zero        = Yes
+judgement2 env (Add1 e1)   Nat  (Add1 e2)   = judgement2 env e1 Nat e2
 judgement2 env (Cons c1 c2) (Pair p1 p2) (Cons c3 c4) =
   judgement2 env c1 p1 c3 <> judgement2 env c2 p2 c4
 judgement2 env e1@(Car _) e2 e3 = case evalPie env e1 of
@@ -105,9 +104,9 @@ judgement2 _ _ _ _ = No
 
 -- | Third form of judgement
 -- _____ is a type.
-judgement3 :: Env -> Expr -> Judgement
-judgement3 _   AtomType                  = Yes
-judgement3 _   (AtomData _)              = No
+judgement3 :: Context -> Expr -> Judgement
+judgement3 _   Atom                      = Yes
+judgement3 _   (Quote _)                 = No
 judgement3 _   Universe                  = Yes
 judgement3 _   (Var _                  ) = No -- TODO: check env
 judgement3 _   (Cons _  _              ) = No
@@ -117,8 +116,8 @@ judgement3 env (evalPie env -> Left err) = TypeError err
 
 -- | Fourth form of judgement
 -- ______ and ______ are the same type.
-judgement4 :: Env -> Expr -> Expr -> Judgement
-judgement4 _ AtomType AtomType = Yes
+judgement4 :: Context -> Expr -> Expr -> Judgement
+judgement4 _ Atom     Atom     = Yes
 judgement4 _ Universe Universe = Yes
 judgement4 env (Pair e1 e2) (Pair e3 e4) =
   judgement4 env e1 e3 <> judgement4 env e2 e4

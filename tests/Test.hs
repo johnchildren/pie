@@ -12,9 +12,12 @@ import qualified Hedgehog.Range                as Range
 import           Test.Tasty
 import           Test.Tasty.Hspec
 import           Test.Tasty.Hedgehog                      ( testProperty )
+import           Language.Pie.Symbols                     ( Symbol(..)
+                                                          , VarName(..)
+                                                          )
 import           Language.Pie.Parse                       ( parsePie )
 import           Language.Pie.Print                       ( printPie )
-import           Language.Pie.Environment                 ( emptyEnv )
+import qualified Language.Pie.Context          as Context
 import           Language.Pie.Eval                        ( evalPie )
 import           Language.Pie.Judgement                   ( judgement1
                                                           , judgement2
@@ -22,24 +25,21 @@ import           Language.Pie.Judgement                   ( judgement1
                                                           , judgement4
                                                           , Judgement(..)
                                                           )
-import           Language.Pie.Expr                        ( AtomID(..)
-                                                          , VarName(..)
-                                                          , Expr(..)
-                                                          )
+import           Language.Pie.Expr                        ( Expr(..) )
 
 
 genVarName :: Gen VarName
 genVarName = VarName <$> Gen.text (Range.constant 1 10) Gen.alpha
 
-genAtomID :: Gen AtomID
-genAtomID = AtomID <$> Gen.text (Range.constant 1 10) Gen.alpha
+genSymbol :: Gen Symbol
+genSymbol = Symbol <$> Gen.text (Range.constant 1 10) Gen.alpha
 
 genExprs :: Gen Expr
 genExprs = Gen.recursive
   Gen.choice
   [ Var <$> genVarName
-  , Gen.constant AtomType
-  , AtomData <$> genAtomID
+  , Gen.constant Atom
+  , Quote <$> genSymbol
   , Gen.constant Nat
   , Gen.constant Zero
   , Gen.constant Universe
@@ -81,7 +81,7 @@ spec = do
     describe "normalisation" $ do
       it "normalises expressions"
         $          evalPie
-                     emptyEnv
+                     Context.empty
                      (Car
                        (Cons (Cons (mkAtom "aubergine") (mkAtom "courgette"))
                              (mkAtom "tomato")
@@ -91,45 +91,45 @@ spec = do
 
       it "normalises expression of types and values"
         $          evalPie
-                     emptyEnv
-                     (Pair (Car (Cons AtomType (mkAtom "olive")))
-                           (Cdr (Cons (mkAtom "oil") AtomType))
+                     Context.empty
+                     (Pair (Car (Cons Atom (mkAtom "olive")))
+                           (Cdr (Cons (mkAtom "oil") Atom))
                      )
-        `shouldBe` Right (Pair AtomType AtomType)
+        `shouldBe` Right (Pair Atom Atom)
 
     describe "lambda expressions" $ do
       it "can apply lambda expressions"
-        $ evalPie emptyEnv (App (Lambda (VarName "x") (mkVar "x")) AtomType)
-        `shouldBe` Right AtomType
+        $ evalPie Context.empty (App (Lambda (VarName "x") (mkVar "x")) Atom)
+        `shouldBe` Right Atom
 
       it "will normalise while applying a lambda expression"
         $          evalPie
-                     emptyEnv
+                     Context.empty
                      (App
                        (Lambda (VarName "x") (Car (Cons (mkVar "x") (mkAtom "foo"))))
-                       AtomType
+                       Atom
                      )
-        `shouldBe` Right AtomType
+        `shouldBe` Right Atom
 
       it "will ignore unused variables"
-        $ evalPie emptyEnv (App (Lambda (VarName "x") (mkAtom "foo")) AtomType)
+        $ evalPie Context.empty (App (Lambda (VarName "x") (mkAtom "foo")) Atom)
         `shouldBe` Right (mkAtom "foo")
 
       it "works with nested lambda applications"
         $          evalPie
-                     emptyEnv
+                     Context.empty
                      (App
                        (App (Lambda (VarName "x") (Lambda (VarName "y") (mkVar "x")))
-                            AtomType
+                            Atom
                        )
                        (mkAtom "foo")
                      )
-        `shouldBe` Right AtomType
+        `shouldBe` Right Atom
 
     describe "which-Nat" $ do
       it "evaluates to base when target is zero"
         $          evalPie
-                     emptyEnv
+                     Context.empty
                      (WhichNat Zero
                                (mkAtom "naught")
                                (Lambda (VarName "n") (mkAtom "more"))
@@ -138,7 +138,7 @@ spec = do
 
       it "evaluates to step n when target is (add1 n)"
         $          evalPie
-                     emptyEnv
+                     Context.empty
                      (WhichNat (Add1 (Add1 (Add1 (Add1 Zero))))
                                (mkAtom "naught")
                                (Lambda (VarName "n") (mkAtom "more"))
@@ -148,7 +148,7 @@ spec = do
     describe "iter-Nat" $ do
       it "evaluates to base when target is zero"
         $          evalPie
-                     emptyEnv
+                     Context.empty
                      (IterNat Zero
                               (mkAtom "naught")
                               (Lambda (VarName "n") (mkAtom "more"))
@@ -157,7 +157,7 @@ spec = do
 
       it "evaluates to step n when target is (add1 n)"
         $          evalPie
-                     emptyEnv
+                     Context.empty
                      (IterNat (Add1 (Add1 (Add1 (Add1 Zero))))
                               (mkAtom "naught")
                               (Lambda (VarName "n") (mkAtom "more"))
@@ -166,7 +166,7 @@ spec = do
 
       it "each add1 in the value of target is replaced by a step"
         $          evalPie
-                     emptyEnv
+                     Context.empty
                      (IterNat (Add1 (Add1 (Add1 (Add1 (Add1 Zero)))))
                               (Add1 (Add1 (Add1 Zero)))
                               (Lambda (VarName "smaller") (Add1 (mkVar "smaller")))
@@ -178,7 +178,7 @@ spec = do
     describe "rec-Nat" $ do
       it "evaluates to base when target is zero"
         $          evalPie
-                     emptyEnv
+                     Context.empty
                      (RecNat
                        Zero
                        (mkAtom "naught")
@@ -188,7 +188,7 @@ spec = do
 
       it "evaluates to (step n (iter-Nat n base step)) when target is (add1 n)"
         $          evalPie
-                     emptyEnv
+                     Context.empty
                      (RecNat
                        (Add1 (Add1 (Add1 (Add1 Zero))))
                        (mkAtom "naught")
@@ -198,106 +198,108 @@ spec = do
 
   describe "The first form of Judgement" $ do
     it "checks if an expression if of a type"
-      $          judgement1 emptyEnv (mkAtom "x") AtomType
+      $          judgement1 Context.empty (mkAtom "x") Atom
       `shouldBe` Yes
 
     it "checks if a cons of two atoms has the type of a pair of two atom types"
-      $          judgement1 emptyEnv
+      $          judgement1 Context.empty
                             (Cons (mkAtom "courgette") (mkAtom "baguette"))
-                            (Pair AtomType AtomType)
+                            (Pair Atom Atom)
       `shouldBe` Yes
 
-    it "checks if zero is a Nat" $ judgement1 emptyEnv Zero Nat `shouldBe` Yes
+    it "checks if zero is a Nat"
+      $          judgement1 Context.empty Zero Nat
+      `shouldBe` Yes
 
     it "checks if (add1 zero) is a Nat"
-      $          judgement1 emptyEnv (Add1 Zero) Nat
+      $          judgement1 Context.empty (Add1 Zero) Nat
       `shouldBe` Yes
 
     it "normalises expressions"
-      $ judgement1 emptyEnv
+      $ judgement1 Context.empty
                    (Car (Cons (mkAtom "courgette") (mkAtom "baguette")))
-                   AtomType
+                   Atom
       `shouldBe` Yes
 
     it "applies lambda expressions"
-      $ judgement1 emptyEnv
+      $ judgement1 Context.empty
                    (App (Lambda (VarName "x") (mkVar "x")) (mkAtom "foo"))
-                   AtomType
+                   Atom
       `shouldBe` Yes
 
   describe "The second form of Judgement" $ do
     it "checks that an atom is the same Atom as an atom that has the same id"
-      $ judgement2 emptyEnv (mkAtom "courgette") AtomType (mkAtom "courgette")
+      $ judgement2 Context.empty (mkAtom "courgette") Atom (mkAtom "courgette")
       `shouldBe` Yes
 
     it "checks than an atom is a different Atom to an atom with a different id"
-      $ judgement2 emptyEnv (mkAtom "courgette") AtomType (mkAtom "baguette")
+      $ judgement2 Context.empty (mkAtom "courgette") Atom (mkAtom "baguette")
       `shouldBe` No
 
     it "checks that zero is the same Nat as zero"
-      $          judgement2 emptyEnv Zero Nat Zero
+      $          judgement2 Context.empty Zero Nat Zero
       `shouldBe` Yes
 
     it "checks that (add1 zero) is not the same Nat as zero"
-      $          judgement2 emptyEnv (Add1 Zero) Nat Zero
+      $          judgement2 Context.empty (Add1 Zero) Nat Zero
       `shouldBe` No
 
     it "checks that (add1 zero) is the same Nat as (add1 zero)"
-      $          judgement2 emptyEnv (Add1 Zero) Nat (Add1 Zero)
+      $          judgement2 Context.empty (Add1 Zero) Nat (Add1 Zero)
       `shouldBe` Yes
 
     it "normalises expressions"
-      $          judgement2 emptyEnv
-                            (Car (Pair (mkAtom "foo") AtomType))
-                            AtomType
+      $          judgement2 Context.empty
+                            (Car (Pair (mkAtom "foo") Atom))
+                            Atom
                             (mkAtom "foo")
       `shouldBe` Yes
 
     it "applies lambda expressions"
-      $ judgement2 emptyEnv
+      $ judgement2 Context.empty
                    (App (Lambda (VarName "x") (mkVar "x")) (mkAtom "foo"))
-                   AtomType
+                   Atom
                    (mkAtom "foo")
       `shouldBe` Yes
 
   describe "The third form of Judgement" $ do
     it "checks than an atom is not a type"
-      $          judgement3 emptyEnv (mkAtom "courgette")
+      $          judgement3 Context.empty (mkAtom "courgette")
       `shouldBe` No
 
     it "checks that Atom is a type"
-      $          judgement3 emptyEnv AtomType
+      $          judgement3 Context.empty Atom
       `shouldBe` Yes
 
     it "normalises expressions"
-      $          judgement3 emptyEnv (Car (Pair AtomType AtomType))
+      $          judgement3 Context.empty (Car (Pair Atom Atom))
       `shouldBe` Yes
 
     it "applies lambda expressions"
-      $ judgement3 emptyEnv (App (Lambda (VarName "x") (mkVar "x")) AtomType)
+      $ judgement3 Context.empty (App (Lambda (VarName "x") (mkVar "x")) Atom)
       `shouldBe` Yes
 
   describe "The fourth form of Judgement" $ do
     it "checks that two atoms with the same id are not the same type"
-      $          judgement4 emptyEnv (mkAtom "courgette") (mkAtom "courgette")
+      $ judgement4 Context.empty (mkAtom "courgette") (mkAtom "courgette")
       `shouldBe` No
 
     it "checks that two Atom types are the same type"
-      $          judgement4 emptyEnv AtomType AtomType
+      $          judgement4 Context.empty Atom Atom
       `shouldBe` Yes
 
     it "normalises expressions"
-      $          judgement4 emptyEnv (Car (Pair AtomType AtomType)) AtomType
+      $          judgement4 Context.empty (Car (Pair Atom Atom)) Atom
       `shouldBe` Yes
 
     it "applies lambda expressions"
-      $          judgement4 emptyEnv
-                            (App (Lambda (VarName "x") (mkVar "x")) AtomType)
-                            AtomType
+      $          judgement4 Context.empty
+                            (App (Lambda (VarName "x") (mkVar "x")) Atom)
+                            Atom
       `shouldBe` Yes
 
 mkAtom :: Text -> Expr
-mkAtom = AtomData . AtomID
+mkAtom = Quote . Symbol
 
 mkVar :: Text -> Expr
 mkVar = Var . VarName

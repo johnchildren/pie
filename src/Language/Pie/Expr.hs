@@ -5,26 +5,21 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Language.Pie.Expr
-  ( AtomID(..)
-  , VarName(..)
-  , Expr(..)
+  ( Expr(..)
   , ExprF(..)
   )
 where
 
-import           Data.Text                                ( Text )
+import           Language.Pie.Symbols                     ( Symbol(..)
+                                                          , VarName(..)
+                                                          )
 import           Data.Functor.Foldable.TH                 ( makeBaseFunctor )
 
-newtype AtomID = AtomID Text
-    deriving (Show, Eq)
-
-newtype VarName = VarName Text
-    deriving (Show, Eq)
 
 data Expr = The Expr Expr
          | Var VarName
-         | AtomType
-         | AtomData AtomID
+         | Atom
+         | Quote Symbol
          | Cons Expr Expr
          | Pair Expr Expr
          | Car Expr
@@ -32,6 +27,7 @@ data Expr = The Expr Expr
          | Pie VarName Expr Expr
          | Arrow Expr Expr -- TODO: no arrows in core pie
          | Lambda VarName Expr
+         | Sigma VarName Expr Expr
          | App Expr Expr
          | Nat
          | Zero
