@@ -22,6 +22,7 @@ library
                      , Language.Pie.Print
                      , Language.Pie.Eval
                      , Language.Pie.Judgement
+                     , Language.Pie.TypeChecker
   build-depends:       base                   >= 4.9  && < 4.13
                      , containers             >= 0.6  && < 0.7
                      , text                   >= 1.2  && < 1.3

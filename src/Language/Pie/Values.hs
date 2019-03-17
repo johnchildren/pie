@@ -14,30 +14,30 @@ import           Language.Pie.Symbols                     ( Symbol
 import           Language.Pie.Expr                        ( Expr )
 
 data Closure = CLOS (Env Value) VarName Expr
+           deriving(Show)
 
 data Value = PI Value Closure
            | LAM Closure
            | SIGMA Value Closure
+           | CONS Value Value
            | PAIR Value Value
            | NAT
            | ZERO
            | ADD1 Value
-           | EQ Value Value Value
-           | SAME
-           | TRIVIAL
-           | SOLE
-           | ABSURD
            | ATOM
            | QUOTE Symbol
            | UNI
            | NEU Value Neutral
+           deriving(Show)
 
 data Neutral = NVar VarName
              | NAp Neutral Normal
              | NCar Neutral
              | NCdr Neutral
-             | NIndNat Neutral Neutral Neutral Neutral
-             | NReplace Neutral Normal Normal
-             | NIndAbsurd Neutral Normal
+             | NWhichNat Neutral Normal Normal
+             | NIterNat Neutral Normal Normal
+             | NRecNat Neutral Normal Normal
+           deriving(Show)
 
 data Normal = THE Value Value
+           deriving(Show)

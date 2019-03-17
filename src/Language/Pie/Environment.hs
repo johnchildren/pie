@@ -5,6 +5,7 @@ module Language.Pie.Environment
   , empty
   , lookup
   , insert
+  , mapWithVarName
   )
 where
 
@@ -22,3 +23,6 @@ lookup = Map.lookup
 
 insert :: VarName -> a -> Env a -> Env a
 insert = Map.insert
+
+mapWithVarName :: (VarName -> a -> b) -> Env a -> Env b
+mapWithVarName = Map.mapWithKey
