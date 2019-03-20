@@ -18,14 +18,17 @@ import           Language.Pie.Symbols                     ( Symbol(..)
 import           Language.Pie.Parse                       ( parsePie )
 import           Language.Pie.Print                       ( printPie )
 import qualified Language.Pie.Environment      as Env
-import           Language.Pie.Eval                        ( evalPie )
+import           Language.Pie.Eval                        ( val )
 import           Language.Pie.Judgement                   ( judgement1
                                                           , judgement2
                                                           , judgement3
                                                           , judgement4
                                                           , Judgement(..)
                                                           )
-import           Language.Pie.Expr                        ( Expr(..) )
+import           Language.Pie.Values                      ( Value(..) )
+import           Language.Pie.Expr                        ( Expr(..)
+                                                          , Clos(..)
+                                                          )
 
 
 genVarName :: Gen VarName
@@ -53,12 +56,12 @@ genExprs = Gen.recursive
 --                  genExprs
 --                  (\x y -> Pie <$> genVarName <*> pure x <*> pure y)
   , Gen.subterm2 genExprs genExprs Arrow
-  , Gen.subtermM genExprs (\x -> Lambda <$> genVarName <*> pure x)
+  , Gen.subtermM genExprs (\x -> Lambda <$> genVarName <*> pure (Clos x))
   , Gen.subterm2 genExprs genExprs App
   , Gen.subterm genExprs Add1
-  , Gen.subterm3 genExprs genExprs genExprs WhichNat
-  , Gen.subterm3 genExprs genExprs genExprs IterNat
-  , Gen.subterm3 genExprs genExprs genExprs RecNat
+  , Gen.subterm3 genExprs genExprs genExprs (\x y z -> WhichNat x y (Clos z))
+  , Gen.subterm3 genExprs genExprs genExprs (\x y z -> IterNat x y (Clos z))
+  , Gen.subterm3 genExprs genExprs genExprs (\x y z -> RecNat x y (Clos z))
   ]
 
 
@@ -80,121 +83,113 @@ spec = do
   describe "Evaluating pie expression" $ do
     describe "normalisation" $ do
       it "normalises expressions"
-        $          evalPie
+        $          val
                      Env.empty
                      (Car
                        (Cons (Cons (mkAtom "aubergine") (mkAtom "courgette"))
                              (mkAtom "tomato")
                        )
                      )
-        `shouldBe` Right (Cons (mkAtom "aubergine") (mkAtom "courgette"))
+        `shouldBe` Right (CONS (mkATOM "aubergine") (mkATOM "courgette"))
 
       it "normalises expression of types and values"
-        $          evalPie
+        $          val
                      Env.empty
                      (Pair (Car (Cons Atom (mkAtom "olive")))
                            (Cdr (Cons (mkAtom "oil") Atom))
                      )
-        `shouldBe` Right (Pair Atom Atom)
+        `shouldBe` Right (PAIR ATOM ATOM)
 
     describe "lambda expressions" $ do
       it "can apply lambda expressions"
-        $ evalPie Env.empty (App (Lambda (VarName "x") (mkVar "x")) Atom)
-        `shouldBe` Right Atom
+        $          val Env.empty (App (mkLambda "x" (mkVar "x")) Atom)
+        `shouldBe` Right ATOM
 
       it "will normalise while applying a lambda expression"
-        $          evalPie
+        $          val
                      Env.empty
-                     (App
-                       (Lambda (VarName "x") (Car (Cons (mkVar "x") (mkAtom "foo"))))
-                       Atom
-                     )
-        `shouldBe` Right Atom
+                     (App (mkLambda "x" (Car (Cons (mkVar "x") (mkAtom "foo")))) Atom)
+        `shouldBe` Right ATOM
 
       it "will ignore unused variables"
-        $ evalPie Env.empty (App (Lambda (VarName "x") (mkAtom "foo")) Atom)
-        `shouldBe` Right (mkAtom "foo")
+        $          val Env.empty (App (mkLambda "x" (mkAtom "foo")) Atom)
+        `shouldBe` Right (mkATOM "foo")
 
       it "works with nested lambda applications"
-        $          evalPie
+        $          val
                      Env.empty
-                     (App
-                       (App (Lambda (VarName "x") (Lambda (VarName "y") (mkVar "x")))
-                            Atom
-                       )
-                       (mkAtom "foo")
+                     (App (App (mkLambda "x" (mkLambda "y" (mkVar "x"))) Atom)
+                          (mkAtom "foo")
                      )
-        `shouldBe` Right Atom
+        `shouldBe` Right ATOM
 
     describe "which-Nat" $ do
       it "evaluates to base when target is zero"
-        $          evalPie
+        $          val
                      Env.empty
                      (WhichNat Zero
                                (mkAtom "naught")
-                               (Lambda (VarName "n") (mkAtom "more"))
+                               (Clos (mkLambda "n" (mkAtom "more")))
                      )
-        `shouldBe` Right (mkAtom "naught")
+        `shouldBe` Right (mkATOM "naught")
 
       it "evaluates to step n when target is (add1 n)"
-        $          evalPie
+        $          val
                      Env.empty
                      (WhichNat (Add1 (Add1 (Add1 (Add1 Zero))))
                                (mkAtom "naught")
-                               (Lambda (VarName "n") (mkAtom "more"))
+                               (Clos (mkLambda "n" (mkAtom "more")))
                      )
-        `shouldBe` Right (mkAtom "more")
+        `shouldBe` Right (mkATOM "more")
 
     describe "iter-Nat" $ do
       it "evaluates to base when target is zero"
-        $          evalPie
+        $          val
                      Env.empty
                      (IterNat Zero
                               (mkAtom "naught")
-                              (Lambda (VarName "n") (mkAtom "more"))
+                              (Clos (mkLambda "n" (mkAtom "more")))
                      )
-        `shouldBe` Right (mkAtom "naught")
+        `shouldBe` Right (mkATOM "naught")
 
       it "evaluates to step n when target is (add1 n)"
-        $          evalPie
+        $          val
                      Env.empty
                      (IterNat (Add1 (Add1 (Add1 (Add1 Zero))))
                               (mkAtom "naught")
-                              (Lambda (VarName "n") (mkAtom "more"))
+                              (Clos (mkLambda "n" (mkAtom "more")))
                      )
-        `shouldBe` Right (mkAtom "more")
+        `shouldBe` Right (mkATOM "more")
 
       it "each add1 in the value of target is replaced by a step"
-        $          evalPie
+        $          val
                      Env.empty
                      (IterNat (Add1 (Add1 (Add1 (Add1 (Add1 Zero)))))
                               (Add1 (Add1 (Add1 Zero)))
-                              (Lambda (VarName "smaller") (Add1 (mkVar "smaller")))
+                              (Clos (mkLambda "smaller" (Add1 (mkVar "smaller"))))
                      )
         `shouldBe` Right
-                     (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 (Add1 Zero)))))))
+                     (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 ZERO)))))))
                      )
 
     describe "rec-Nat" $ do
       it "evaluates to base when target is zero"
-        $          evalPie
+        $          val
                      Env.empty
-                     (RecNat
-                       Zero
-                       (mkAtom "naught")
-                       (Lambda (VarName "n") (Lambda (VarName "i") (mkAtom "more")))
+                     (RecNat Zero
+                             (mkAtom "naught")
+                             (Clos (mkLambda "n" (mkLambda "i" (mkAtom "more"))))
                      )
-        `shouldBe` Right (mkAtom "naught")
+        `shouldBe` Right (mkATOM "naught")
 
       it "evaluates to (step n (iter-Nat n base step)) when target is (add1 n)"
-        $          evalPie
+        $          val
                      Env.empty
-                     (RecNat
-                       (Add1 (Add1 (Add1 (Add1 Zero))))
-                       (mkAtom "naught")
-                       (Lambda (VarName "n") (Lambda (VarName "i") (mkAtom "more")))
+                     (RecNat (Add1 (Add1 (Add1 (Add1 Zero))))
+                             (mkAtom "naught")
+                             (Clos (mkLambda "n" (mkLambda "i" (mkAtom "more"))))
                      )
-        `shouldBe` Right (mkAtom "more")
+        `shouldBe` Right (mkATOM "more")
 
   describe "The first form of Judgement" $ do
     it "checks if an expression if of a type"
@@ -220,9 +215,9 @@ spec = do
       `shouldBe` Yes
 
     it "applies lambda expressions"
-      $ judgement1 Env.empty
-                   (App (Lambda (VarName "x") (mkVar "x")) (mkAtom "foo"))
-                   Atom
+      $          judgement1 Env.empty
+                            (App (mkLambda "x" (mkVar "x")) (mkAtom "foo"))
+                            Atom
       `shouldBe` Yes
 
   describe "The second form of Judgement" $ do
@@ -254,10 +249,10 @@ spec = do
       `shouldBe` Yes
 
     it "applies lambda expressions"
-      $ judgement2 Env.empty
-                   (App (Lambda (VarName "x") (mkVar "x")) (mkAtom "foo"))
-                   Atom
-                   (mkAtom "foo")
+      $          judgement2 Env.empty
+                            (App (mkLambda "x" (mkVar "x")) (mkAtom "foo"))
+                            Atom
+                            (mkAtom "foo")
       `shouldBe` Yes
 
   describe "The third form of Judgement" $ do
@@ -272,7 +267,7 @@ spec = do
       `shouldBe` Yes
 
     it "applies lambda expressions"
-      $ judgement3 Env.empty (App (Lambda (VarName "x") (mkVar "x")) Atom)
+      $          judgement3 Env.empty (App (mkLambda "x" (mkVar "x")) Atom)
       `shouldBe` Yes
 
   describe "The fourth form of Judgement" $ do
@@ -289,7 +284,7 @@ spec = do
       `shouldBe` Yes
 
     it "applies lambda expressions"
-      $ judgement4 Env.empty (App (Lambda (VarName "x") (mkVar "x")) Atom) Atom
+      $          judgement4 Env.empty (App (mkLambda "x" (mkVar "x")) Atom) Atom
       `shouldBe` Yes
 
 mkAtom :: Text -> Expr
@@ -297,3 +292,9 @@ mkAtom = Quote . Symbol
 
 mkVar :: Text -> Expr
 mkVar = Var . VarName
+
+mkLambda :: Text -> Expr -> Expr
+mkLambda x b = Lambda (VarName x) (Clos b)
+
+mkATOM :: Text -> Value
+mkATOM = QUOTE . Symbol

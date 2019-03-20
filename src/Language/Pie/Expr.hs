@@ -7,6 +7,7 @@
 module Language.Pie.Expr
   ( Expr(..)
   , ExprF(..)
+  , Clos(..)
   )
 where
 
@@ -16,6 +17,10 @@ import           Language.Pie.Symbols                     ( Symbol(..)
 import           Data.Functor.Foldable.TH                 ( makeBaseFunctor )
 
 
+-- Closure indiciates this value shouldn't be computed immediately.
+newtype Clos = Clos Expr
+  deriving (Show, Eq)
+
 data Expr = The Expr Expr
          | Var VarName
          | Atom
@@ -24,17 +29,17 @@ data Expr = The Expr Expr
          | Pair Expr Expr
          | Car Expr
          | Cdr Expr
-         | Pie VarName Expr Expr
+         | Pie VarName Expr Clos
          | Arrow Expr Expr -- TODO: no arrows in core pie
-         | Lambda VarName Expr
-         | Sigma VarName Expr Expr
+         | Lambda VarName Clos
+         | Sigma VarName Expr Clos
          | App Expr Expr
          | Nat
          | Zero
          | Add1 Expr
-         | WhichNat Expr Expr Expr
-         | IterNat Expr Expr Expr
-         | RecNat Expr Expr Expr
+         | WhichNat Expr Expr Clos
+         | IterNat Expr Expr Clos
+         | RecNat Expr Expr Clos
          | Universe
         deriving (Show, Eq)
 

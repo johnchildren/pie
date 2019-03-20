@@ -23,13 +23,6 @@ data Judgement = Yes
     | TypeError TypeError
     deriving (Show, Eq)
 
-instance Semigroup Judgement where
-  (<>) Yes             Yes             = Yes
-  (<>) t@(TypeError _) _               = t
-  (<>) _               t@(TypeError _) = t
-  (<>) No              _               = No
-  (<>) _               No              = No
-
 
 -- | First form of judgement
 -- ______ is a ______.
@@ -45,7 +38,7 @@ judgement1 ctx e1 e2 =
 -- ______ is the same ______ as ______.
 judgement2 :: Env Binding -> Expr -> Expr -> Expr -> Judgement
 judgement2 ctx e1 e2 e3 =
-  let env       = ctxToEnvironment ctx
+  let env = ctxToEnvironment ctx
       converted :: Either TypeError (Expr, Expr)
       converted = do
         t  <- val env e2

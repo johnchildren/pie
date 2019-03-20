@@ -1,90 +1,108 @@
 module Language.Pie.Eval
-  ( TypeError
-  , evalPie
+  ( EvalError(..)
+  , val
+  , valOfClosure
   )
 where
 
+import           Control.Monad                            ( join )
 import           Data.Functor.Foldable                    ( Base
                                                           , cata
                                                           )
-import           Language.Pie.Symbols                     ( VarName(..) )
 import           Language.Pie.Environment                 ( Env )
 import           Language.Pie.Expr                        ( Expr(..)
                                                           , ExprF(..)
+                                                          , Clos(..)
                                                           )
 
--- worst type errors ever
-newtype TypeError = TypeError String
-  deriving (Show, Eq)
+import           Language.Pie.Symbols                     ( VarName(..) )
+import qualified Language.Pie.Environment      as Env
+import           Language.Pie.Values                      ( Value(..)
+                                                          , Neutral(..)
+                                                          , Closure(..)
+                                                          , Normal(..)
+                                                          )
 
 type Algebra t a = Base t a -> a
 
-evalPie :: Env Expr -> Expr -> Either TypeError Expr
-evalPie rho = cata eval'
- where
-  eval' :: Algebra Expr (Either TypeError Expr)
-  eval' (TheF e1 e2  )             = The <$> e1 <*> e2 --TODO: this should be a type check
-  eval' (VarF varname)             = Right (Var varname)
-  eval' AtomF                      = Right Atom
-  eval' (QuoteF symbol           ) = Right (Quote symbol)
-  eval' (ConsF e1 e2             ) = Cons <$> e1 <*> e2
-  eval' (PairF e1 e2             ) = Pair <$> e1 <*> e2
-  eval' (CarF (Right (Cons v1 _))) = Right v1
-  eval' (CarF (Right (Pair v1 _))) = Right v1
-  eval' (CarF _                  ) = Left (TypeError "can't car")
-  eval' (CdrF (Right (Cons _ v2))) = Right v2
-  eval' (CdrF (Right (Pair _ v2))) = Right v2
-  eval' (CdrF _                  ) = Left (TypeError "can't cdr")
-  eval' NatF                       = Right Nat
-  eval' ZeroF                      = Right Zero
-  eval' (Add1F e1@(Right Zero))    = Add1 <$> e1
-  eval' (Add1F e1@(Right (Add1 _))) = Add1 <$> e1
-  eval' (Add1F e1@(Right (Var _))) = Add1 <$> e1
-  eval' (Add1F _)                  = Left (TypeError "can't add")
+data EvalError = UnknownVariableError VarName
+               | InvalidCar Value
+               | InvalidCdr Value
+               | InvalidApp Value Value
+               | InvalidWhichNat Expr Value Value
+               | InvalidIterNat Expr Value Value
+               | InvalidRecNat Expr Value Value
+  deriving (Show, Eq)
 
-  -- functions
-  eval' (PieF var e1 e2)           = Pie var <$> e1 <*> e2
-  eval' (ArrowF e1 e2)             = Arrow <$> e1 <*> e2
-  eval' (LambdaF var expr)         = Lambda var <$> expr
-  eval' (AppF (Right (Lambda v body)) applied) = apply v body <$> applied
-  eval' (AppF _ _)                 = Left (TypeError "can't apply") -- TODO: is this true?
-  -- which-Nat
-  eval' (WhichNatF (Right Zero) base _) = base
-  eval' (WhichNatF (Right (Add1 n)) _ step) =
-    flip App n <$> step >>= evalPie rho
-  eval' WhichNatF{}                    = Left (TypeError "can't which-Nat")
-  -- iter-Nat
-  eval' (IterNatF (Right Zero) base _) = base
-  eval' (IterNatF (Right (Add1 n)) base step) =
-    ((\b s -> App s (IterNat n b s)) <$> base <*> step) >>= evalPie rho
-  eval' IterNatF{}                    = Left (TypeError "can't iter-Nat")
-  -- rec-Nat
-  eval' (RecNatF (Right Zero) base _) = base
-  eval' (RecNatF (Right (Add1 n)) base step) =
-    ((\b s -> App (App s n) (RecNat n b s)) <$> base <*> step) >>= evalPie rho
-  eval' RecNatF{} = Left (TypeError "can't rec-Nat")
-  eval' UniverseF = Right Universe
+valOfClosure :: Closure -> Value -> Either EvalError Value
+valOfClosure (CLOS rho x e) v = val (Env.insert x v rho) e
 
-apply :: VarName -> Expr -> Expr -> Expr
-apply v body applied = cata apply' body
+val :: Env Value -> Expr -> Either EvalError Value
+val rho = cata val'
  where
-  apply' :: Algebra Expr Expr
-  apply' (TheF e1 e2  )       = The e1 e2
-  apply' (VarF varname)       = if v == varname then applied else Var varname
-  apply' AtomF                = Atom
-  apply' (QuoteF atomID)      = Quote atomID
-  apply' ZeroF                = Zero
-  apply' NatF                 = Nat
-  apply' (ConsF e1 e2       ) = Cons e1 e2
-  apply' (PairF e1 e2       ) = Pair e1 e2
-  apply' (CarF  e1          ) = Car e1
-  apply' (CdrF  e1          ) = Cdr e1
-  apply' (Add1F e1          ) = Add1 e1
-  apply' (PieF var e1 e2    ) = Pie var e1 e2
-  apply' (ArrowF  e1  e2    ) = Arrow e1 e2
-  apply' (LambdaF var expr  ) = Lambda var expr
-  apply' (AppF    e1  e2    ) = App e1 e2 -- TODO: don't think this should ever happen?
-  apply' (WhichNatF e1 e2 e3) = WhichNat e1 e2 e3
-  apply' (IterNatF  e1 e2 e3) = IterNat e1 e2 e3
-  apply' (RecNatF   e1 e2 e3) = RecNat e1 e2 e3
-  apply' UniverseF            = Universe
+  val' :: Algebra Expr (Either EvalError Value)
+  val' (TheF _ expr)         = expr
+  val' UniverseF             = Right UNI
+  val' (PieF x a (Clos b)  ) = (\y -> PI y (CLOS rho x b)) <$> a
+  val' (LambdaF x (Clos b) ) = Right $ LAM (CLOS rho x b)
+  val' (SigmaF x a (Clos d)) = (\y -> SIGMA y (CLOS rho x d)) <$> a
+  val' (PairF a d          ) = PAIR <$> a <*> d
+  val' (ConsF a d          ) = CONS <$> a <*> d
+  val' (CarF pr            ) = doCar =<< pr
+  val' (CdrF pr            ) = doCdr =<< pr
+  val' NatF                  = Right NAT
+  val' ZeroF                 = Right ZERO
+  val' (Add1F n)             = ADD1 <$> n
+  val' AtomF                 = Right ATOM
+  val' (QuoteF ad      )     = Right $ QUOTE ad
+  val' (AppF rator rand)     = join $ doApp <$> rator <*> rand
+  val' (WhichNatF target base step) =
+    join $ doWhichNat rho step <$> target <*> base
+  val' (IterNatF target base step) =
+    join $ doIterNat rho step <$> target <*> base
+  val' (RecNatF target base step) =
+    join $ doRecNat rho step <$> target <*> base
+  val' (VarF x) = case Env.lookup x rho of
+    Just v  -> Right v
+    Nothing -> Left $ UnknownVariableError x
+
+doCar :: Value -> Either EvalError Value
+doCar (CONS a           _ ) = Right a
+doCar (PAIR a           _ ) = Right a
+doCar (NEU  (SIGMA a _) ne) = Right $ NEU a (NCar ne)
+doCar v                     = Left $ InvalidCar v
+
+doCdr :: Value -> Either EvalError Value
+doCdr (  CONS _           d ) = Right d
+doCdr (  PAIR _           d ) = Right d
+doCdr v@(NEU  (SIGMA _ d) ne) = do
+  aVal  <- doCar v
+  dClos <- valOfClosure d aVal
+  Right $ NEU dClos (NCdr ne)
+doCdr v = Left $ InvalidCdr v
+
+doApp :: Value -> Value -> Either EvalError Value
+doApp (LAM c) arg = valOfClosure c arg
+doApp (NEU (PI a b) ne) arg =
+  (\y -> NEU y (NAp ne (THE a arg))) <$> valOfClosure b arg
+doApp v1 v2 = Left $ InvalidApp v1 v2
+
+
+doWhichNat :: Env Value -> Clos -> Value -> Value -> Either EvalError Value
+doWhichNat _ _ ZERO base = Right base
+doWhichNat rho (Clos (Lambda x (Clos e))) (ADD1 n) _ =
+  doApp (LAM (CLOS rho x e)) n
+doWhichNat _ (Clos step) v base = Left $ InvalidWhichNat step v base
+
+doIterNat :: Env Value -> Clos -> Value -> Value -> Either EvalError Value
+doIterNat _ _ ZERO base = Right base
+doIterNat rho step@(Clos (Lambda x (Clos e))) (ADD1 n) base =
+  doApp (LAM (CLOS rho x e)) =<< doIterNat rho step n base
+doIterNat _ (Clos step) v base = Left $ InvalidIterNat step v base
+
+doRecNat :: Env Value -> Clos -> Value -> Value -> Either EvalError Value
+doRecNat _   _                               ZERO     base = Right base
+doRecNat rho step@(Clos (Lambda x (Clos e))) (ADD1 n) base = do
+  rator <- doApp (LAM (CLOS rho x e)) n
+  doApp rator =<< doRecNat rho step n base
+doRecNat _ (Clos step) v base = Left $ InvalidRecNat step v base

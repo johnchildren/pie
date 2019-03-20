@@ -14,7 +14,9 @@ import           Text.Megaparsec.Char
 import           Language.Pie.Symbols                     ( Symbol(..)
                                                           , VarName(..)
                                                           )
-import           Language.Pie.Expr                        ( Expr(..) )
+import           Language.Pie.Expr                        ( Expr(..)
+                                                          , Clos(..)
+                                                          )
 
 type Parser = Parsec Void Text
 
@@ -50,10 +52,17 @@ parseLambdaExpr :: Parser Expr
 parseLambdaExpr =
   (Lambda <$ string "lambda")
     <*> (space1 >> parens parseVarName)
-    <*> (space1 >> pieParser)
+    <*> (space1 >> (Clos <$> pieParser))
 
 parseAppExpr :: Parser Expr
 parseAppExpr = App <$> pieParser <*> (space1 >> pieParser)
+
+parseEliminator :: Parser (Expr -> Expr -> Clos -> Expr) -> Parser Expr
+parseEliminator p =
+  p
+    <*> (space1 >> pieParser)
+    <*> (space1 >> pieParser)
+    <*> (space1 >> (Clos <$> pieParser))
 
 parsePieExpr :: Parser Expr
 parsePieExpr =
@@ -63,9 +72,9 @@ parsePieExpr =
     <|> parseUnaryExpr (Car <$ string "car")
     <|> parseUnaryExpr (Cdr <$ string "cdr")
     <|> parseUnaryExpr (Add1 <$ string "add1")
-    <|> parseTernaryExpr (WhichNat <$ string "which-Nat")
-    <|> parseTernaryExpr (IterNat <$ string "iter-Nat")
-    <|> parseTernaryExpr (RecNat <$ string "rec-Nat")
+    <|> parseEliminator (WhichNat <$ string "which-Nat")
+    <|> parseEliminator (IterNat <$ string "iter-Nat")
+    <|> parseEliminator (RecNat <$ string "rec-Nat")
     <|> parseBinaryExpr (Arrow <$ string "->")
     <|> parseLambdaExpr
     <|> parseAppExpr

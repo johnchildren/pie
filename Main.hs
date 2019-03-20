@@ -22,7 +22,7 @@ import           Language.Pie.Parse                       ( parsePie
                                                           )
 import           Language.Pie.Print                       ( printPie )
 import qualified Language.Pie.Environment      as Env
-import           Language.Pie.Eval                        ( evalPie )
+import           Language.Pie.TypeChecker                 ( tyInteract )
 
 
 
@@ -31,10 +31,8 @@ type Repl a = HaskelineT IO a
 
 cmd :: (MonadIO m) => Command (HaskelineT m)
 cmd input = liftIO $ case parsePie (Text.pack input) of
-  Right expr -> case evalPie Env.empty expr of
-    Right evald -> Text.putStrLn (printPie evald)
-    Left  err   -> print err
-  Left err -> putStrLn $ parseErrorPretty err
+  Right expr -> tyInteract Env.empty expr
+  Left  err  -> putStrLn $ parseErrorPretty err
 
 completer :: Monad m => WordCompleter m
 completer _ = pure []

@@ -14,7 +14,7 @@ import           Language.Pie.Symbols                     ( Symbol
 import           Language.Pie.Expr                        ( Expr )
 
 data Closure = CLOS (Env Value) VarName Expr
-           deriving(Show)
+           deriving(Show, Eq)
 
 data Value = PI Value Closure
            | LAM Closure
@@ -28,7 +28,7 @@ data Value = PI Value Closure
            | QUOTE Symbol
            | UNI
            | NEU Value Neutral
-           deriving(Show)
+           deriving(Show, Eq)
 
 data Neutral = NVar VarName
              | NAp Neutral Normal
@@ -37,7 +37,7 @@ data Neutral = NVar VarName
              | NWhichNat Neutral Normal Normal
              | NIterNat Neutral Normal Normal
              | NRecNat Neutral Normal Normal
-           deriving(Show)
+           deriving(Show, Eq)
 
 data Normal = THE Value Value
-           deriving(Show)
+           deriving(Show, Eq)
