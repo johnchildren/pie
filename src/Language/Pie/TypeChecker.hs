@@ -1,5 +1,6 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Language.Pie.TypeChecker
   ( alphaEquiv
@@ -17,6 +18,9 @@ where
 
 
 import           Data.Bifunctor                           ( first )
+import           Control.Monad.Fail                       ( MonadFail
+                                                          , fail
+                                                          )
 import           Language.Pie.Symbols                     ( VarName(..) )
 import           Language.Pie.Environment                 ( Env )
 import qualified Language.Pie.Environment      as Env
@@ -38,6 +42,7 @@ data TypeError = UnknownTypeError VarName
                | TypeSynthesisError Expr
                | NonPairError Expr
                | NbEError EvalError
+               | NotNormalisedError String
                deriving (Show, Eq)
 
 
@@ -135,6 +140,9 @@ lookupType name ctx = case Env.lookup name ctx of
   Just (FreeVar t     ) -> Right t
   Just (Definition _ t) -> Right t
 
+
+instance MonadFail (Either TypeError) where
+  fail = Left . NotNormalisedError
 
 synth :: Env Binding -> Expr -> Either TypeError Expr
 synth gamma = synth'
