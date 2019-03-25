@@ -121,7 +121,7 @@ alphaEquiv' (Lambda x (Clos b1)) (Lambda y (Clos b2)) xs1 xs2 =
   in  let bigger1 = Env.insert x fresh xs1
           bigger2 = Env.insert y fresh xs2
       in  alphaEquiv' b1 b2 bigger1 bigger2
-alphaEquiv' (Pie x a1 (Clos b1)) (Pie y a2 (Clos b2)) xs1 xs2 =
+alphaEquiv' (Pi x a1 (Clos b1)) (Pi y a2 (Clos b2)) xs1 xs2 =
   alphaEquiv' a1 a2 xs1 xs2
     && let fresh = freshen xs1 xs2
        in  let bigger1 = Env.insert x fresh xs1
@@ -150,6 +150,15 @@ synth gamma = synth'
     aOut <- check gamma a UNI
     bOut <- check gamma b UNI
     Right $ The Universe (Pair aOut bOut)
+  synth' (Lambda x (Clos d)) = do
+    -- TODO: fresh name for arrow
+    let xTyVal = NEU UNI (NVar (VarName "a"))
+    let xVal   = NEU xTyVal (NVar x)
+    (The dTy dVal) <- synth
+      (extendCtx (extendCtx gamma x xVal) (VarName "a") xTyVal)
+      d
+    let xTy = readBackNorm gamma (THE UNI xTyVal)
+    Right $ The (Arrow xTy dTy) (Lambda x (Clos dVal))
   synth' (Sigma x a (Clos d)) = do
     aOut <- check gamma a UNI
     aVal <- val (ctxToEnvironment gamma) aOut
@@ -169,12 +178,12 @@ synth gamma = synth'
       --(SIGMA _ d) -> Right $ The (readBackNorm gamma (THE UNI d)) (Car prOut)
       (PAIR _ b) -> Right $ The (readBackNorm gamma (THE UNI b)) (Car prOut)
       other      -> Left $ NonPairError (readBackNorm gamma (THE UNI other))
-  synth' Nat                = Right $ The Universe Nat
-  synth' (Pie x a (Clos b)) = do
+  synth' Nat               = Right $ The Universe Nat
+  synth' (Pi x a (Clos b)) = do
     aOut <- check gamma a UNI
     aVal <- val (ctxToEnvironment gamma) aOut
     bOut <- check (extendCtx gamma x aVal) b UNI
-    Right $ The Universe (Pie x aOut (Clos bOut))
+    Right $ The Universe (Pi x aOut (Clos bOut))
   -- Atom is a Universe
   synth' Atom             = Right $ The Universe Atom
   synth' (App rator rand) = do

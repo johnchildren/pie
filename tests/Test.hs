@@ -1,22 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main
-  ( main
+module Test
+  ( spec_eval
+  , spec_judgement
   )
 where
 
 import           Data.Text                                ( Text )
-import           Hedgehog                          hiding ( Var )
-import qualified Hedgehog.Gen                  as Gen
-import qualified Hedgehog.Range                as Range
-import           Test.Tasty
 import           Test.Tasty.Hspec
-import           Test.Tasty.Hedgehog                      ( testProperty )
 import           Language.Pie.Symbols                     ( Symbol(..)
                                                           , VarName(..)
                                                           )
-import           Language.Pie.Parse                       ( parsePie )
-import           Language.Pie.Print                       ( printPie )
 import qualified Language.Pie.Environment      as Env
 import           Language.Pie.Eval                        ( val )
 import           Language.Pie.Judgement                   ( judgement1
@@ -31,166 +25,113 @@ import           Language.Pie.Expr                        ( Expr(..)
                                                           )
 
 
-genVarName :: Gen VarName
-genVarName = VarName <$> Gen.text (Range.constant 1 10) Gen.alpha
-
-genSymbol :: Gen Symbol
-genSymbol = Symbol <$> Gen.text (Range.constant 1 10) Gen.alpha
-
-genExprs :: Gen Expr
-genExprs = Gen.recursive
-  Gen.choice
-  [ Var <$> genVarName
-  , Gen.constant Atom
-  , Quote <$> genSymbol
-  , Gen.constant Nat
-  , Gen.constant Zero
-  , Gen.constant Universe
-  ]
-  [ Gen.subterm2 genExprs genExprs The
-  , Gen.subterm2 genExprs genExprs Cons
-  , Gen.subterm2 genExprs genExprs Pair
-  , Gen.subterm genExprs Car
-  , Gen.subterm genExprs Cdr
---  , Gen.subtermM2 genExprs
---                  genExprs
---                  (\x y -> Pie <$> genVarName <*> pure x <*> pure y)
-  , Gen.subterm2 genExprs genExprs Arrow
-  , Gen.subtermM genExprs (\x -> Lambda <$> genVarName <*> pure (Clos x))
-  , Gen.subterm2 genExprs genExprs App
-  , Gen.subterm genExprs Add1
-  , Gen.subterm3 genExprs genExprs genExprs (\x y z -> WhichNat x y (Clos z))
-  , Gen.subterm3 genExprs genExprs genExprs (\x y z -> IterNat x y (Clos z))
-  , Gen.subterm3 genExprs genExprs genExprs (\x y z -> RecNat x y (Clos z))
-  ]
-
-
-prop_parse_print_trip :: Property
-prop_parse_print_trip = withTests 1000 . property $ do
-  exprs <- forAll genExprs
-  tripping exprs printPie parsePie
-
-main :: IO ()
-main = do
-  mySpec <- testSpec "specs" spec
-  defaultMain
-    (testGroup "tests"
-               [mySpec, testProperty "parse print" prop_parse_print_trip]
-    )
-
-spec :: Spec
-spec = do
-  describe "Evaluating pie expression" $ do
-    describe "normalisation" $ do
-      it "normalises expressions"
-        $          val
-                     Env.empty
-                     (Car
-                       (Cons (Cons (mkAtom "aubergine") (mkAtom "courgette"))
-                             (mkAtom "tomato")
-                       )
+spec_eval :: Spec
+spec_eval = describe "Evaluating pie expression" $ do
+  describe "normalisation" $ do
+    it "normalises expressions"
+      $          val
+                   Env.empty
+                   (Car
+                     (Cons (Cons (mkAtom "aubergine") (mkAtom "courgette"))
+                           (mkAtom "tomato")
                      )
-        `shouldBe` Right (CONS (mkATOM "aubergine") (mkATOM "courgette"))
+                   )
+      `shouldBe` Right (CONS (mkATOM "aubergine") (mkATOM "courgette"))
 
-      it "normalises expression of types and values"
-        $          val
-                     Env.empty
-                     (Pair (Car (Cons Atom (mkAtom "olive")))
-                           (Cdr (Cons (mkAtom "oil") Atom))
-                     )
-        `shouldBe` Right (PAIR ATOM ATOM)
+    it "normalises expression of types and values"
+      $          val
+                   Env.empty
+                   (Pair (Car (Cons Atom (mkAtom "olive")))
+                         (Cdr (Cons (mkAtom "oil") Atom))
+                   )
+      `shouldBe` Right (PAIR ATOM ATOM)
 
-    describe "lambda expressions" $ do
-      it "can apply lambda expressions"
-        $          val Env.empty (App (mkLambda "x" (mkVar "x")) Atom)
-        `shouldBe` Right ATOM
+  describe "lambda expressions" $ do
+    it "can apply lambda expressions"
+      $          val Env.empty (App (mkLambda "x" (mkVar "x")) Atom)
+      `shouldBe` Right ATOM
 
-      it "will normalise while applying a lambda expression"
-        $          val
-                     Env.empty
-                     (App (mkLambda "x" (Car (Cons (mkVar "x") (mkAtom "foo")))) Atom)
-        `shouldBe` Right ATOM
+    it "will normalise while applying a lambda expression"
+      $ val Env.empty
+            (App (mkLambda "x" (Car (Cons (mkVar "x") (mkAtom "foo")))) Atom)
+      `shouldBe` Right ATOM
 
-      it "will ignore unused variables"
-        $          val Env.empty (App (mkLambda "x" (mkAtom "foo")) Atom)
-        `shouldBe` Right (mkATOM "foo")
+    it "will ignore unused variables"
+      $          val Env.empty (App (mkLambda "x" (mkAtom "foo")) Atom)
+      `shouldBe` Right (mkATOM "foo")
 
-      it "works with nested lambda applications"
-        $          val
-                     Env.empty
-                     (App (App (mkLambda "x" (mkLambda "y" (mkVar "x"))) Atom)
-                          (mkAtom "foo")
-                     )
-        `shouldBe` Right ATOM
+    it "works with nested lambda applications"
+      $          val
+                   Env.empty
+                   (App (App (mkLambda "x" (mkLambda "y" (mkVar "x"))) Atom)
+                        (mkAtom "foo")
+                   )
+      `shouldBe` Right ATOM
 
-    describe "which-Nat" $ do
-      it "evaluates to base when target is zero"
-        $          val
-                     Env.empty
-                     (WhichNat Zero
-                               (mkAtom "naught")
-                               (Clos (mkLambda "n" (mkAtom "more")))
-                     )
-        `shouldBe` Right (mkATOM "naught")
+  describe "which-Nat" $ do
+    it "evaluates to base when target is zero"
+      $          val
+                   Env.empty
+                   (WhichNat Zero (mkAtom "naught") (Clos (mkLambda "n" (mkAtom "more")))
+                   )
+      `shouldBe` Right (mkATOM "naught")
 
-      it "evaluates to step n when target is (add1 n)"
-        $          val
-                     Env.empty
-                     (WhichNat (Add1 (Add1 (Add1 (Add1 Zero))))
-                               (mkAtom "naught")
-                               (Clos (mkLambda "n" (mkAtom "more")))
-                     )
-        `shouldBe` Right (mkATOM "more")
-
-    describe "iter-Nat" $ do
-      it "evaluates to base when target is zero"
-        $          val
-                     Env.empty
-                     (IterNat Zero
-                              (mkAtom "naught")
-                              (Clos (mkLambda "n" (mkAtom "more")))
-                     )
-        `shouldBe` Right (mkATOM "naught")
-
-      it "evaluates to step n when target is (add1 n)"
-        $          val
-                     Env.empty
-                     (IterNat (Add1 (Add1 (Add1 (Add1 Zero))))
-                              (mkAtom "naught")
-                              (Clos (mkLambda "n" (mkAtom "more")))
-                     )
-        `shouldBe` Right (mkATOM "more")
-
-      it "each add1 in the value of target is replaced by a step"
-        $          val
-                     Env.empty
-                     (IterNat (Add1 (Add1 (Add1 (Add1 (Add1 Zero)))))
-                              (Add1 (Add1 (Add1 Zero)))
-                              (Clos (mkLambda "smaller" (Add1 (mkVar "smaller"))))
-                     )
-        `shouldBe` Right
-                     (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 ZERO)))))))
-                     )
-
-    describe "rec-Nat" $ do
-      it "evaluates to base when target is zero"
-        $          val
-                     Env.empty
-                     (RecNat Zero
+    it "evaluates to step n when target is (add1 n)"
+      $          val
+                   Env.empty
+                   (WhichNat (Add1 (Add1 (Add1 (Add1 Zero))))
                              (mkAtom "naught")
-                             (Clos (mkLambda "n" (mkLambda "i" (mkAtom "more"))))
-                     )
-        `shouldBe` Right (mkATOM "naught")
+                             (Clos (mkLambda "n" (mkAtom "more")))
+                   )
+      `shouldBe` Right (mkATOM "more")
 
-      it "evaluates to (step n (iter-Nat n base step)) when target is (add1 n)"
-        $          val
-                     Env.empty
-                     (RecNat (Add1 (Add1 (Add1 (Add1 Zero))))
-                             (mkAtom "naught")
-                             (Clos (mkLambda "n" (mkLambda "i" (mkAtom "more"))))
-                     )
-        `shouldBe` Right (mkATOM "more")
+  describe "iter-Nat" $ do
+    it "evaluates to base when target is zero"
+      $          val
+                   Env.empty
+                   (IterNat Zero (mkAtom "naught") (Clos (mkLambda "n" (mkAtom "more"))))
+      `shouldBe` Right (mkATOM "naught")
 
+    it "evaluates to step n when target is (add1 n)"
+      $          val
+                   Env.empty
+                   (IterNat (Add1 (Add1 (Add1 (Add1 Zero))))
+                            (mkAtom "naught")
+                            (Clos (mkLambda "n" (mkAtom "more")))
+                   )
+      `shouldBe` Right (mkATOM "more")
+
+    it "each add1 in the value of target is replaced by a step"
+      $          val
+                   Env.empty
+                   (IterNat (Add1 (Add1 (Add1 (Add1 (Add1 Zero)))))
+                            (Add1 (Add1 (Add1 Zero)))
+                            (Clos (mkLambda "smaller" (Add1 (mkVar "smaller"))))
+                   )
+      `shouldBe` Right
+                   (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 (ADD1 ZERO))))))))
+
+  describe "rec-Nat" $ do
+    it "evaluates to base when target is zero"
+      $          val
+                   Env.empty
+                   (RecNat Zero
+                           (mkAtom "naught")
+                           (Clos (mkLambda "n" (mkLambda "i" (mkAtom "more"))))
+                   )
+      `shouldBe` Right (mkATOM "naught")
+
+    it "evaluates to (step n (iter-Nat n base step)) when target is (add1 n)"
+      $          val
+                   Env.empty
+                   (RecNat (Add1 (Add1 (Add1 (Add1 Zero))))
+                           (mkAtom "naught")
+                           (Clos (mkLambda "n" (mkLambda "i" (mkAtom "more"))))
+                   )
+      `shouldBe` Right (mkATOM "more")
+
+spec_judgement :: Spec
+spec_judgement = do
   describe "The first form of Judgement" $ do
     it "checks if an expression if of a type"
       $          judgement1 Env.empty (mkAtom "x") Atom

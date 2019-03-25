@@ -19,6 +19,7 @@ data Closure = CLOS (Env Value) VarName Expr
 data Value = PI Value Closure
            | LAM Closure
            | SIGMA Value Closure
+           | ARROW Value Value
            | CONS Value Value
            | PAIR Value Value
            | NAT

@@ -41,13 +41,6 @@ parseUnaryExpr p = p <*> (space1 >> pieParser)
 parseBinaryExpr :: Parser (Expr -> Expr -> Expr) -> Parser Expr
 parseBinaryExpr p = p <*> (space1 >> pieParser) <*> (space1 >> pieParser)
 
-parseTernaryExpr :: Parser (Expr -> Expr -> Expr -> Expr) -> Parser Expr
-parseTernaryExpr p =
-  p
-    <*> (space1 >> pieParser)
-    <*> (space1 >> pieParser)
-    <*> (space1 >> pieParser)
-
 parseLambdaExpr :: Parser Expr
 parseLambdaExpr =
   (Lambda <$ string "lambda")

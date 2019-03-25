@@ -29,7 +29,7 @@ data Expr = The Expr Expr
          | Pair Expr Expr
          | Car Expr
          | Cdr Expr
-         | Pie VarName Expr Clos
+         | Pi VarName Expr Clos
          | Arrow Expr Expr -- TODO: no arrows in core pie
          | Lambda VarName Clos
          | Sigma VarName Expr Clos

@@ -51,8 +51,10 @@ printPie = renderStrict . layoutPretty defaultLayoutOptions . cata printPie'
   printPie' (ArrowF e1 e2     ) = printBinaryExpr "->" e1 e2
   printPie' (LambdaF (VarName v) (Clos e)) =
     printBinaryExpr "lambda" ("(" <> pretty v <> ")") (cata printPie' e)
-  printPie' (PieF (VarName v) e1 (Clos e2)) =
-    printBinaryExpr "pie" ("(" <> pretty v <+> e1 <> ")") (cata printPie' e2)
+  printPie' (PiF (VarName v) e1 (Clos e2)) =
+    printBinaryExpr "pi" ("(" <> pretty v <+> e1 <> ")") (cata printPie' e2)
+  printPie' (SigmaF (VarName v) e1 (Clos e2)) =
+    printBinaryExpr "sigma" ("(" <> pretty v <+> e1 <> ")") (cata printPie' e2)
   printPie' (AppF e1 e2) = "(" <> e1 <+> e2 <> ")"
   printPie' NatF         = "Nat"
   printPie' ZeroF        = "zero"

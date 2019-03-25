@@ -43,7 +43,8 @@ val rho = cata val'
   val' :: Algebra Expr (Either EvalError Value)
   val' (TheF _ expr)         = expr
   val' UniverseF             = Right UNI
-  val' (PieF x a (Clos b)  ) = (\y -> PI y (CLOS rho x b)) <$> a
+  val' (ArrowF a d         ) = ARROW <$> a <*> d
+  val' (PiF x a (Clos b)   ) = (\y -> PI y (CLOS rho x b)) <$> a
   val' (LambdaF x (Clos b) ) = Right $ LAM (CLOS rho x b)
   val' (SigmaF x a (Clos d)) = (\y -> SIGMA y (CLOS rho x d)) <$> a
   val' (PairF a d          ) = PAIR <$> a <*> d
