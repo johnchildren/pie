@@ -31,74 +31,75 @@ import           Language.Pie.Values                      ( Value(..)
                                                           )
 import qualified Language.Pie.Eval             as Eval
 import           Language.Pie.Eval                        ( EvalError )
-import           Language.Pie.Expr                        ( Expr(..)
+import           Language.Pie.Expr                        ( CoreExpr(..)
                                                           , Clos(..)
                                                           )
 
 data TypeError = UnknownTypeError VarName
                | UnknownVariableError VarName
-               | UnexpectedPiTypeError Expr
-               | UnificationError Expr Expr Expr
-               | TypeSynthesisError Expr
-               | NonPairError Expr
+               | UnexpectedPiTypeError CoreExpr
+               | UnificationError CoreExpr CoreExpr CoreExpr
+               | TypeSynthesisError CoreExpr
+               | NonPairError CoreExpr
                | NbEError EvalError
                | NotNormalisedError String
                deriving (Show, Eq)
 
 
-val :: Env Value -> Expr -> Either TypeError Value
+val :: Env Value -> CoreExpr -> Either TypeError Value
 val rho e = first NbEError $ Eval.val rho e
 
 valOfClosure :: Closure -> Value -> Either TypeError Value
 valOfClosure cl v = first NbEError $ Eval.valOfClosure cl v
 
-readBackNorm :: Env Binding -> Normal -> Expr
-readBackNorm gamma (THE typ expr) = readBackNorm' typ expr
+-- read back a normalised value
+readBackNorm :: Env Binding -> Normal -> CoreExpr
+readBackNorm gamma (NormThe typ expr) = readBackNorm' typ expr
  where
-  readBackNorm' NAT  ZERO      = Zero
-  readBackNorm' NAT  (ADD1  n) = Add1 (readBackNorm gamma (THE NAT n))
+  readBackNorm' VNat      VZero           = CZero
+  readBackNorm' VNat (VAdd1 n) = CAdd1 (readBackNorm gamma (NormThe VNat n))
   --readBackNorm' (PI a b) f
-  readBackNorm' ATOM (QUOTE x) = Quote x
-  readBackNorm' UNI  NAT       = Nat
-  readBackNorm' UNI  ATOM      = Atom
-  readBackNorm' UNI  UNI       = Universe -- TODO: Not true
-  readBackNorm' UNI (PAIR a b) =
-    Pair (readBackNorm gamma (THE UNI a)) (readBackNorm gamma (THE UNI b))
-  readBackNorm' (PAIR a b) (CONS c d) =
-    Cons (readBackNorm gamma (THE a c)) (readBackNorm gamma (THE b d))
-  readBackNorm' _ (NEU _ ne) = readBackNeutral gamma ne
+  readBackNorm' VAtom     (VQuote x)      = CQuote x
+  readBackNorm' VUniverse VNat            = CNat
+  readBackNorm' VUniverse VAtom           = CAtom
+  readBackNorm' VUniverse VUniverse       = CUniverse -- TODO: Not true
+  --readBackNorm' VUniverse (VPair a b) =
+  --  Pair (readBackNorm gamma (NormThe VUniverse a)) (readBackNorm gamma (NormThe VUniverse b))
+  --readBackNorm' (VPair a b) (VCons c d) =
+  --  Cons (readBackNorm gamma (NormThe a c)) (readBackNorm gamma (NormThe b d))
+  readBackNorm' _         (VNeutral _ ne) = readBackNeutral gamma ne
   readBackNorm' t v =
     error $ "can't read back type: " ++ show t ++ "; value: " ++ show v
 
-readBackNeutral :: Env Binding -> Neutral -> Expr
+readBackNeutral :: Env Binding -> Neutral -> CoreExpr
 readBackNeutral gamma = readBackNeutral'
  where
-  readBackNeutral' (NVar x) = Var x
+  readBackNeutral' (NVar x) = CVar x
   readBackNeutral' (NAp ne rand) =
-    App (readBackNeutral gamma ne) (readBackNorm gamma rand)
-  readBackNeutral' (NCar ne               ) = Car (readBackNeutral gamma ne)
-  readBackNeutral' (NCdr ne               ) = Cdr (readBackNeutral gamma ne)
-  readBackNeutral' (NWhichNat ne base step) = WhichNat
+    CApp (readBackNeutral gamma ne) (readBackNorm gamma rand)
+  readBackNeutral' (NCar ne               ) = CCar (readBackNeutral gamma ne)
+  readBackNeutral' (NCdr ne               ) = CCdr (readBackNeutral gamma ne)
+  readBackNeutral' (NWhichNat ne base step) = CWhichNat
     (readBackNeutral gamma ne)
     (readBackNorm gamma base)
     (Clos (readBackNorm gamma step))
-  readBackNeutral' (NIterNat ne base step) = WhichNat
+  readBackNeutral' (NIterNat ne base step) = CWhichNat
     (readBackNeutral gamma ne)
     (readBackNorm gamma base)
     (Clos (readBackNorm gamma step))
-  readBackNeutral' (NRecNat ne base step) = WhichNat
+  readBackNeutral' (NRecNat ne base step) = CWhichNat
     (readBackNeutral gamma ne)
     (readBackNorm gamma base)
     (Clos (readBackNorm gamma step))
 
--- Expressions that have no arguments to their constructor
+-- CoreExpressions that have no arguments to their constructor
 -- TODO: I'm sure there's a better word for this?
-isAtomic :: Expr -> Bool
-isAtomic Atom     = True
-isAtomic Nat      = True
-isAtomic Zero     = True
-isAtomic Universe = True
-isAtomic _        = False
+isAtomic :: CoreExpr -> Bool
+isAtomic CAtom     = True
+isAtomic CNat      = True
+isAtomic CZero     = True
+isAtomic CUniverse = True
+isAtomic _         = False
 
 type Bindings = Env VarName
 
@@ -109,24 +110,24 @@ data Binding = Definition { _type :: Value, _value :: Value }
 freshen :: Bindings -> Bindings -> VarName
 freshen _ _ = VarName "foo"
 
-alphaEquiv :: Expr -> Expr -> Bool
+alphaEquiv :: CoreExpr -> CoreExpr -> Bool
 alphaEquiv e1 e2 = alphaEquiv' e1 e2 Env.empty Env.empty
 
-alphaEquiv' :: Expr -> Expr -> Bindings -> Bindings -> Bool
+alphaEquiv' :: CoreExpr -> CoreExpr -> Bindings -> Bindings -> Bool
 alphaEquiv' e1 e2 _ _ | e1 == e2 && isAtomic e1 = True
-alphaEquiv' (Var v1) (Var v2) (Env.lookup v1 -> Nothing) (Env.lookup v2 -> Nothing)
+alphaEquiv' (CVar v1) (CVar v2) (Env.lookup v1 -> Nothing) (Env.lookup v2 -> Nothing)
   = v1 == v2
-alphaEquiv' (Var v1) (Var v2) (Env.lookup v1 -> Just e3) (Env.lookup v2 -> Just e4)
+alphaEquiv' (CVar v1) (CVar v2) (Env.lookup v1 -> Just e3) (Env.lookup v2 -> Just e4)
   = e3 == e4
-alphaEquiv' (Var   _ ) (Var   _ ) _    _    = False
-alphaEquiv' (Quote a1) (Quote a2) _    _    = a1 == a2
-alphaEquiv' (Add1  n1) (Add1  n2) env1 env2 = alphaEquiv' n1 n2 env1 env2
-alphaEquiv' (Lambda x (Clos b1)) (Lambda y (Clos b2)) xs1 xs2 =
+alphaEquiv' (CVar   _ ) (CVar   _ ) _    _    = False
+alphaEquiv' (CQuote a1) (CQuote a2) _    _    = a1 == a2
+alphaEquiv' (CAdd1  n1) (CAdd1  n2) env1 env2 = alphaEquiv' n1 n2 env1 env2
+alphaEquiv' (CLambda x (Clos b1)) (CLambda y (Clos b2)) xs1 xs2 =
   let fresh = freshen xs1 xs2
   in  let bigger1 = Env.insert x fresh xs1
           bigger2 = Env.insert y fresh xs2
       in  alphaEquiv' b1 b2 bigger1 bigger2
-alphaEquiv' (Pi x a1 (Clos b1)) (Pi y a2 (Clos b2)) xs1 xs2 =
+alphaEquiv' (CPi x a1 (Clos b1)) (CPi y a2 (Clos b2)) xs1 xs2 =
   alphaEquiv' a1 a2 xs1 xs2
     && let fresh = freshen xs1 xs2
        in  let bigger1 = Env.insert x fresh xs1
@@ -144,143 +145,142 @@ lookupType name ctx = case Env.lookup name ctx of
 instance MonadFail (Either TypeError) where
   fail = Left . NotNormalisedError
 
-synth :: Env Binding -> Expr -> Either TypeError Expr
+synth :: Env Binding -> CoreExpr -> Either TypeError CoreExpr
 synth gamma = synth'
  where
-  synth' :: Expr -> Either TypeError Expr
-  synth' (The typ expr) = do
-    tOut <- check gamma typ UNI
+  synth' :: CoreExpr -> Either TypeError CoreExpr
+  synth' (CThe typ expr) = do
+    tOut <- check gamma typ VUniverse
     tVal <- val (ctxToEnvironment gamma) tOut
     eOut <- check gamma expr tVal
-    Right $ The tOut eOut
-  synth' Universe   = Right $ The Universe Universe
-  synth' (Pair a b) = do
-    aOut <- check gamma a UNI
-    bOut <- check gamma b UNI
-    Right $ The Universe (Pair aOut bOut)
-  synth' (Lambda x (Clos d)) = do
+    Right $ CThe tOut eOut
+  synth' CUniverse             = Right $ CThe CUniverse CUniverse
+--  synth' (CLambda x (Clos d)) = do
     -- TODO: fresh name for arrow
-    let xTyVal = NEU UNI (NVar (VarName "a"))
-    let xVal   = NEU xTyVal (NVar x)
-    (The dTy dVal) <- synth
-      (extendCtx (extendCtx gamma x xVal) (VarName "a") xTyVal)
-      d
-    let xTy = readBackNorm gamma (THE UNI xTyVal)
-    Right $ The (Arrow xTy dTy) (Lambda x (Clos dVal))
-  synth' (Sigma x a (Clos d)) = do
-    aOut <- check gamma a UNI
+--    let xTyVal = VNeutral VUniverse (NVar (VarName "a"))
+--    let xVal   = VNeutral xTyVal (NVar x)
+--    (CThe dTy dVal) <- synth
+--      (extendCtx (extendCtx gamma x xVal) (VarName "a") xTyVal)
+--      d
+--    let xTy = readBackNorm gamma (NormThe VUniverse xTyVal)
+--    Right $ The (CArrow xTy dTy) (CLambda x (Clos dVal))
+  synth' (CSigma x a (Clos d)) = do
+    aOut <- check gamma a VUniverse
     aVal <- val (ctxToEnvironment gamma) aOut
-    dOut <- check (extendCtx gamma x aVal) d UNI
-    Right $ The Universe (Sigma x aOut (Clos dOut))
-  synth' (Car pr) = do
-    (The prTy prOut) <- synth gamma pr
-    prTyVal          <- val (ctxToEnvironment gamma) prTy
+    dOut <- check (extendCtx gamma x aVal) d VUniverse
+    Right $ CThe CUniverse (CSigma x aOut (Clos dOut))
+  synth' (CCar pr) = do
+    (CThe prTy prOut) <- synth gamma pr
+    prTyVal           <- val (ctxToEnvironment gamma) prTy
     case prTyVal of
-      (SIGMA a _) -> Right $ The (readBackNorm gamma (THE UNI a)) (Car prOut)
-      (PAIR  a _) -> Right $ The (readBackNorm gamma (THE UNI a)) (Car prOut)
-      other       -> Left $ NonPairError (readBackNorm gamma (THE UNI other))
-  synth' (Cdr pr) = do
-    (The prTy prOut) <- synth gamma pr
-    prTyVal          <- val (ctxToEnvironment gamma) prTy
+      (VSigma a _) ->
+        Right $ CThe (readBackNorm gamma (NormThe VUniverse a)) (CCar prOut)
+      other ->
+        Left $ NonPairError (readBackNorm gamma (NormThe VUniverse other))
+  synth' (CCdr pr) = do
+    (CThe prTy prOut) <- synth gamma pr
+    prTyVal           <- val (ctxToEnvironment gamma) prTy
     case prTyVal of
-      --(SIGMA _ d) -> Right $ The (readBackNorm gamma (THE UNI d)) (Car prOut)
-      (PAIR _ b) -> Right $ The (readBackNorm gamma (THE UNI b)) (Car prOut)
-      other      -> Left $ NonPairError (readBackNorm gamma (THE UNI other))
-  synth' Nat               = Right $ The Universe Nat
-  synth' (Pi x a (Clos b)) = do
-    aOut <- check gamma a UNI
+      --(SIGMA _ d) -> Right $ The (readBackNorm gamma (NormThe VUniverse d)) (Car prOut)
+      other ->
+        Left $ NonPairError (readBackNorm gamma (NormThe VUniverse other))
+  synth' CNat               = Right $ CThe CUniverse CNat
+  synth' (CPi x a (Clos b)) = do
+    aOut <- check gamma a VUniverse
     aVal <- val (ctxToEnvironment gamma) aOut
-    bOut <- check (extendCtx gamma x aVal) b UNI
-    Right $ The Universe (Pi x aOut (Clos bOut))
+    bOut <- check (extendCtx gamma x aVal) b VUniverse
+    Right $ CThe CUniverse (CPi x aOut (Clos bOut))
   -- Atom is a Universe
-  synth' Atom             = Right $ The Universe Atom
-  synth' (App rator rand) = do
-    (The ratorT ratorOut) <- synth gamma rator
-    ratorTVal             <- val (ctxToEnvironment gamma) ratorT
+  synth' CAtom             = Right $ CThe CUniverse CAtom
+  synth' (CApp rator rand) = do
+    (CThe ratorT ratorOut) <- synth gamma rator
+    ratorTVal              <- val (ctxToEnvironment gamma) ratorT
     case ratorTVal of
-      (PI a b) -> do
+      (VPi a b) -> do
         randOut     <- check gamma rand a
         randOutVal  <- val (ctxToEnvironment gamma) randOut
         randOutClos <- valOfClosure b randOutVal
-        Right $ The (readBackNorm gamma (THE UNI randOutClos)) ratorOut
-      other ->
-        Left (UnexpectedPiTypeError (readBackNorm gamma (THE UNI other)))
-  synth' q@(Quote _) = Right $ The Atom q
+        Right
+          $ CThe (readBackNorm gamma (NormThe VUniverse randOutClos)) ratorOut
+      other -> Left
+        (UnexpectedPiTypeError (readBackNorm gamma (NormThe VUniverse other)))
+  synth' q@(CQuote _) = Right $ CThe CAtom q
   -- Zero is a Nat
-  synth' Zero        = Right $ The Nat Zero
+  synth' CZero        = Right $ CThe CNat CZero
   -- if n in a@(Add1 n) is a Nat, a is a Nat
-  synth' a@(Add1 n)  = do
-    _ <- check gamma n NAT
-    Right $ The Nat a
-  synth' (Cons a b) = do
-    (The aTy aVal) <- synth gamma a
-    (The bTy bVal) <- synth gamma b
-    Right $ The (Pair aTy bTy) (Cons aVal bVal)
-  synth' (Var x) = do
+  synth' a@(CAdd1 n)  = do
+    _ <- check gamma n VNat
+    Right $ CThe CNat a
+--  synth' (CCons a b) = do
+--    (CThe aTy aVal) <- synth gamma a
+--    (CThe bTy bVal) <- synth gamma b
+--    Right $ CThe (CPair aTy bTy) (CCons aVal bVal)
+  synth' (CVar x) = do
     t <- lookupType x gamma
-    Right $ The (readBackNorm gamma (THE UNI t)) (Var x)
+    Right $ CThe (readBackNorm gamma (NormThe VUniverse t)) (CVar x)
   synth' other = Left $ TypeSynthesisError other
 
 
-check :: Env Binding -> Expr -> Value -> Either TypeError Expr
+check :: Env Binding -> CoreExpr -> Value -> Either TypeError CoreExpr
 check gamma = check'
  where
-  check' :: Expr -> Value -> Either TypeError Expr
-  check' (Cons a1 d1) (PAIR a2 d2) = do
-    aOut <- check gamma a1 a2
-    dOut <- check gamma d1 d2
-    Right $ Cons aOut dOut
-  check' (Cons a1 d1) (SIGMA a2 d2) = do
+  check' :: CoreExpr -> Value -> Either TypeError CoreExpr
+  check' (CCons a1 d1) (VSigma a2 d2) = do
     aOut  <- check gamma a1 a2
     aVal  <- val (ctxToEnvironment gamma) aOut
     aClos <- valOfClosure d2 aVal
     dOut  <- check gamma d1 aClos
-    Right $ Cons aOut dOut
-  check' Zero     NAT = Right Zero
-  check' (Add1 n) NAT = do
-    nOut <- check gamma n NAT
-    Right $ Add1 nOut
-  check' (Lambda x (Clos b)) (PI a c) = do
-    let xVal = NEU a (NVar x)
+    Right $ CCons aOut dOut
+  check' CZero     VNat = Right CZero
+  check' (CAdd1 n) VNat = do
+    nOut <- check gamma n VNat
+    Right $ CAdd1 nOut
+  check' (CLambda x (Clos b)) (VPi a c) = do
+    let xVal = VNeutral a (NVar x)
     cClos <- valOfClosure c xVal
     bOut  <- check (extendCtx gamma x a) b cClos
-    Right $ Lambda x (Clos bOut)
-  check' (Quote s) ATOM = Right $ Quote s
-  check' e         t    = do
-    (The tOut eOut) <- synth gamma e
-    tVal            <- val (ctxToEnvironment gamma) tOut
-    _               <- convert gamma UNI t tVal
+    Right $ CLambda x (Clos bOut)
+  check' (CQuote s) VAtom = Right $ CQuote s
+  check' e          t     = do
+    (CThe tOut eOut) <- synth gamma e
+    tVal             <- val (ctxToEnvironment gamma) tOut
+    _                <- convert gamma VUniverse t tVal
     Right eOut
 
 ctxToEnvironment :: Env Binding -> Env Value
 ctxToEnvironment = Env.mapWithVarName aux
  where
   aux :: VarName -> Binding -> Value
-  aux name (FreeVar t     ) = NEU t (NVar name)
+  aux name (FreeVar t     ) = VNeutral t (NVar name)
   aux _    (Definition _ v) = v
 
 extendCtx :: Env Binding -> VarName -> Value -> Env Binding
 extendCtx ctx name v = Env.insert name (FreeVar v) ctx
 
 convert
-  :: Env Binding -> Value -> Value -> Value -> Either TypeError (Expr, Expr)
+  :: Env Binding
+  -> Value
+  -> Value
+  -> Value
+  -> Either TypeError (CoreExpr, CoreExpr)
 convert gamma t v1 v2 = do
-  let e1 = readBackNorm gamma (THE t v1)
-  let e2 = readBackNorm gamma (THE t v2)
+  let e1 = readBackNorm gamma (NormThe t v1)
+  let e2 = readBackNorm gamma (NormThe t v2)
   if alphaEquiv e1 e2
     then Right (e1, e2)
-    else Left $ UnificationError e1 (readBackNorm gamma (THE UNI t)) e2
+    else Left
+      $ UnificationError e1 (readBackNorm gamma (NormThe VUniverse t)) e2
 
 
 -- please ignore this hack
-tyInteract :: Env Binding -> Expr -> IO ()
+tyInteract :: Env Binding -> CoreExpr -> IO ()
 tyInteract gamma e = case synth gamma e of
-  Right (The ty expr) -> do
+  Right (CThe ty expr) -> do
     let rho = ctxToEnvironment gamma
     print ty
     case val rho ty of
       Right tyVal -> case val rho expr of
-        Right exprVal -> print $ readBackNorm gamma (THE tyVal exprVal)
+        Right exprVal -> print $ readBackNorm gamma (NormThe tyVal exprVal)
         Left  err     -> print err
       Left err -> print err
   Right _   -> putStrLn "unexpected result from synth"

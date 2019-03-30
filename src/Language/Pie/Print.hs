@@ -22,7 +22,6 @@ import           Language.Pie.Symbols                     ( Symbol(..)
                                                           )
 import           Language.Pie.Expr                        ( Expr(..)
                                                           , ExprF(..)
-                                                          , Clos(..)
                                                           )
 
 printUnaryExpr :: Doc a -> Doc a -> Doc a
@@ -49,20 +48,17 @@ printPie = renderStrict . layoutPretty defaultLayoutOptions . cata printPie'
   printPie' (CarF e1          ) = printUnaryExpr "car" e1
   printPie' (CdrF e1          ) = printUnaryExpr "cdr" e1
   printPie' (ArrowF e1 e2     ) = printBinaryExpr "->" e1 e2
-  printPie' (LambdaF (VarName v) (Clos e)) =
-    printBinaryExpr "lambda" ("(" <> pretty v <> ")") (cata printPie' e)
-  printPie' (PiF (VarName v) e1 (Clos e2)) =
-    printBinaryExpr "pi" ("(" <> pretty v <+> e1 <> ")") (cata printPie' e2)
-  printPie' (SigmaF (VarName v) e1 (Clos e2)) =
-    printBinaryExpr "sigma" ("(" <> pretty v <+> e1 <> ")") (cata printPie' e2)
-  printPie' (AppF e1 e2) = "(" <> e1 <+> e2 <> ")"
-  printPie' NatF         = "Nat"
-  printPie' ZeroF        = "zero"
-  printPie' (Add1F e1)   = printUnaryExpr "add1" e1
-  printPie' (WhichNatF e1 e2 (Clos e3)) =
-    printTernaryExpr "which-Nat" e1 e2 (cata printPie' e3)
-  printPie' (IterNatF e1 e2 (Clos e3)) =
-    printTernaryExpr "iter-Nat" e1 e2 (cata printPie' e3)
-  printPie' (RecNatF e1 e2 (Clos e3)) =
-    printTernaryExpr "rec-Nat" e1 e2 (cata printPie' e3)
-  printPie' UniverseF = "Universe"
+  printPie' (LambdaF (VarName v) e) =
+    printBinaryExpr "lambda" ("(" <> pretty v <> ")") e
+  printPie' (PiF (VarName v) e1 e2) =
+    printBinaryExpr "pi" ("(" <> pretty v <+> e1 <> ")") e2
+  printPie' (SigmaF (VarName v) e1 e2) =
+    printBinaryExpr "sigma" ("(" <> pretty v <+> e1 <> ")") e2
+  printPie' (AppF e1 e2)         = "(" <> e1 <+> e2 <> ")"
+  printPie' NatF                 = "Nat"
+  printPie' ZeroF                = "zero"
+  printPie' (Add1F e1          ) = printUnaryExpr "add1" e1
+  printPie' (WhichNatF e1 e2 e3) = printTernaryExpr "which-Nat" e1 e2 e3
+  printPie' (IterNatF  e1 e2 e3) = printTernaryExpr "iter-Nat" e1 e2 e3
+  printPie' (RecNatF   e1 e2 e3) = printTernaryExpr "rec-Nat" e1 e2 e3
+  printPie' UniverseF            = "Universe"

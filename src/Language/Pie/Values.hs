@@ -11,24 +11,22 @@ import           Language.Pie.Environment                 ( Env )
 import           Language.Pie.Symbols                     ( Symbol
                                                           , VarName
                                                           )
-import           Language.Pie.Expr                        ( Expr )
+import           Language.Pie.Expr                        ( CoreExpr )
 
-data Closure = CLOS (Env Value) VarName Expr
+data Closure = CLOS (Env Value) VarName CoreExpr
            deriving(Show, Eq)
 
-data Value = PI Value Closure
-           | LAM Closure
-           | SIGMA Value Closure
-           | ARROW Value Value
-           | CONS Value Value
-           | PAIR Value Value
-           | NAT
-           | ZERO
-           | ADD1 Value
-           | ATOM
-           | QUOTE Symbol
-           | UNI
-           | NEU Value Neutral
+data Value = VPi Value Closure
+           | VLambda Closure
+           | VSigma Value Closure
+           | VCons Value Value
+           | VNat
+           | VZero
+           | VAdd1 Value
+           | VAtom
+           | VQuote Symbol
+           | VUniverse
+           | VNeutral Value Neutral
            deriving(Show, Eq)
 
 data Neutral = NVar VarName
@@ -40,5 +38,5 @@ data Neutral = NVar VarName
              | NRecNat Neutral Normal Normal
            deriving(Show, Eq)
 
-data Normal = THE Value Value
+data Normal = NormThe Value Value
            deriving(Show, Eq)

@@ -14,7 +14,9 @@ import           Language.Pie.TypeChecker                 ( TypeError
                                                           , val
                                                           , ctxToEnvironment
                                                           )
-import           Language.Pie.Expr                        ( Expr(..) )
+import           Language.Pie.Expr                        ( Expr(..)
+                                                          , toCore
+                                                          )
 import           Language.Pie.Environment                 ( Env )
 
 
@@ -29,8 +31,8 @@ data Judgement = Yes
 judgement1 :: Env Binding -> Expr -> Expr -> Judgement
 judgement1 ctx e1 e2 =
   let env = ctxToEnvironment ctx
-      t   = val env e2
-  in  case t >>= check ctx e1 of
+      t   = val env (toCore e2)
+  in  case t >>= check ctx (toCore e1) of
         Right _   -> Yes
         Left  err -> TypeError err
 
@@ -38,12 +40,11 @@ judgement1 ctx e1 e2 =
 -- ______ is the same ______ as ______.
 judgement2 :: Env Binding -> Expr -> Expr -> Expr -> Judgement
 judgement2 ctx e1 e2 e3 =
-  let env = ctxToEnvironment ctx
-      converted :: Either TypeError (Expr, Expr)
+  let env       = ctxToEnvironment ctx
       converted = do
-        t  <- val env e2
-        v1 <- val env e1
-        v2 <- val env e3
+        t  <- val env (toCore e2)
+        v1 <- val env (toCore e1)
+        v2 <- val env (toCore e3)
         convert ctx t v1 v2
   in  case converted of
         Right (c1, c2) -> if c1 == c2 then Yes else No

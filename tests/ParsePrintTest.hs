@@ -41,12 +41,12 @@ genExprs = Gen.recursive
 --                  genExprs
 --                  (\x y -> Pie <$> genVarName <*> pure x <*> pure y)
   , Gen.subterm2 genExprs genExprs Arrow
-  , Gen.subtermM genExprs (\x -> Lambda <$> genVarName <*> pure (Clos x))
+  , Gen.subtermM genExprs (\x -> Lambda <$> genVarName <*> pure x)
   , Gen.subterm2 genExprs genExprs App
   , Gen.subterm genExprs Add1
-  , Gen.subterm3 genExprs genExprs genExprs (\x y z -> WhichNat x y (Clos z))
-  , Gen.subterm3 genExprs genExprs genExprs (\x y z -> IterNat x y (Clos z))
-  , Gen.subterm3 genExprs genExprs genExprs (\x y z -> RecNat x y (Clos z))
+  , Gen.subterm3 genExprs genExprs genExprs WhichNat
+  , Gen.subterm3 genExprs genExprs genExprs IterNat
+  , Gen.subterm3 genExprs genExprs genExprs RecNat
   ]
 
 
