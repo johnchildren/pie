@@ -1,15 +1,28 @@
+{-# LANGUAGE NoImplicitPrelude #-}
+
 module Language.Pie.Environment
   ( Env
-  , emptyEnv
+  , empty
+  , lookup
+  , insert
+  , mapWithVarName
   )
 where
 
+import           Data.Maybe                               ( Maybe )
 import qualified Data.Map                      as Map
-import           Language.Pie.Expr                        ( Expr
-                                                          , VarName
-                                                          )
+import           Language.Pie.Symbols                     ( VarName )
 
-type Env = Map.Map VarName Expr
+type Env a = Map.Map VarName a
 
-emptyEnv :: Env
-emptyEnv = Map.empty
+empty :: Env a
+empty = Map.empty
+
+lookup :: VarName -> Env a -> Maybe a
+lookup = Map.lookup
+
+insert :: VarName -> a -> Env a -> Env a
+insert = Map.insert
+
+mapWithVarName :: (VarName -> a -> b) -> Env a -> Env b
+mapWithVarName = Map.mapWithKey

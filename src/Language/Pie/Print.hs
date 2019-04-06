@@ -17,9 +17,10 @@ import           Data.Text.Prettyprint.Doc                ( (<>)
 import           Data.Functor.Foldable                    ( Base
                                                           , cata
                                                           )
-import           Language.Pie.Expr                        ( AtomID(..)
+import           Language.Pie.Symbols                     ( Symbol(..)
                                                           , VarName(..)
-                                                          , Expr(..)
+                                                          )
+import           Language.Pie.Expr                        ( Expr(..)
                                                           , ExprF(..)
                                                           )
 
@@ -38,19 +39,21 @@ printPie :: Expr -> Text
 printPie = renderStrict . layoutPretty defaultLayoutOptions . cata printPie'
  where
   printPie' :: Algebra Expr (Doc a)
-  printPie' (TheF e1 e2      )     = printBinaryExpr "the" e1 e2
-  printPie' (VarF (VarName v))     = pretty v
-  printPie' AtomTypeF              = "Atom"
-  printPie' (AtomDataF (AtomID s)) = "'" <> pretty s
-  printPie' (PairF e1 e2         ) = printBinaryExpr "Pair" e1 e2
-  printPie' (ConsF e1 e2         ) = printBinaryExpr "cons" e1 e2
-  printPie' (CarF e1             ) = printUnaryExpr "car" e1
-  printPie' (CdrF e1             ) = printUnaryExpr "cdr" e1
-  printPie' (ArrowF e1 e2        ) = printBinaryExpr "->" e1 e2
+  printPie' (TheF e1 e2      )  = printBinaryExpr "the" e1 e2
+  printPie' (VarF (VarName v))  = pretty v
+  printPie' AtomF               = "Atom"
+  printPie' (QuoteF (Symbol s)) = "'" <> pretty s
+  printPie' (PairF e1 e2      ) = printBinaryExpr "Pair" e1 e2
+  printPie' (ConsF e1 e2      ) = printBinaryExpr "cons" e1 e2
+  printPie' (CarF e1          ) = printUnaryExpr "car" e1
+  printPie' (CdrF e1          ) = printUnaryExpr "cdr" e1
+  printPie' (ArrowF e1 e2     ) = printBinaryExpr "->" e1 e2
   printPie' (LambdaF (VarName v) e) =
     printBinaryExpr "lambda" ("(" <> pretty v <> ")") e
-  printPie' (PieF (VarName v) e1 e2) =
-    printBinaryExpr "pie" ("(" <> pretty v <+> e1 <> ")") e2
+  printPie' (PiF (VarName v) e1 e2) =
+    printBinaryExpr "pi" ("(" <> pretty v <+> e1 <> ")") e2
+  printPie' (SigmaF (VarName v) e1 e2) =
+    printBinaryExpr "sigma" ("(" <> pretty v <+> e1 <> ")") e2
   printPie' (AppF e1 e2)         = "(" <> e1 <+> e2 <> ")"
   printPie' NatF                 = "Nat"
   printPie' ZeroF                = "zero"

@@ -14,12 +14,15 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Language.Pie.Expr
+  exposed-modules:     Language.Pie.Symbols
+                     , Language.Pie.Expr
                      , Language.Pie.Environment
+                     , Language.Pie.Values
                      , Language.Pie.Parse
                      , Language.Pie.Print
                      , Language.Pie.Eval
                      , Language.Pie.Judgement
+                     , Language.Pie.TypeChecker
   build-depends:       base                   >= 4.9  && < 4.13
                      , containers             >= 0.6  && < 0.7
                      , text                   >= 1.2  && < 1.3
@@ -59,14 +62,17 @@ executable pie-repl
 test-suite pie-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      tests
-  main-is:             Test.hs
+  main-is:             Driver.hs
   build-depends:       base                   >= 4.9  && < 4.13
                      , text                   >= 1.2  && < 1.3
-                     , tasty                  >= 1.2  && < 1.3
-                     , tasty-hspec            >= 1.1  && < 1.2
                      , hedgehog               >= 0.6  && < 0.7
+                     , tasty                  >= 1.2  && < 1.3
                      , tasty-hedgehog         >= 0.2  && < 0.3
+                     , tasty-hspec            >= 1.1  && < 1.2
+                     , tasty-discover         >= 4.2  && < 5.0
                      , pie
+  other-modules:       Test
+                       ParsePrintTest
   default-language:    Haskell2010
   ghc-options:         -Wall
                        -Wincomplete-uni-patterns

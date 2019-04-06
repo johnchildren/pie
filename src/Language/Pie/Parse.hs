@@ -11,11 +11,10 @@ import qualified Data.Text                     as Text
 import           Data.Text                                ( Text )
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
-
-import           Language.Pie.Expr                        ( AtomID(..)
+import           Language.Pie.Symbols                     ( Symbol(..)
                                                           , VarName(..)
-                                                          , Expr(..)
                                                           )
+import           Language.Pie.Expr                        ( Expr(..) )
 
 type Parser = Parsec Void Text
 
@@ -24,12 +23,12 @@ type PieParseError = ParseError Char Void
 parens :: Parser a -> Parser a
 parens = between (char '(') (char ')')
 
--- Atom IDs must only contain letters and hyphens
-atomID :: Parser AtomID
-atomID = do
+-- Symbols must only contain letters and hyphens
+symbol :: Parser Symbol
+symbol = do
   _   <- char '\''
   val <- some (letterChar <|> char '-')
-  pure $ AtomID (Text.pack val)
+  pure $ Symbol (Text.pack val)
 
 parseVarName :: Parser VarName
 parseVarName = VarName . Text.pack <$> some letterChar
@@ -73,8 +72,8 @@ parsePieExpr =
 
 pieParser :: Parser Expr
 pieParser =
-  (AtomType <$ string "Atom")
-    <|> (AtomData <$> atomID)
+  (Atom <$ string "Atom")
+    <|> (Quote <$> symbol)
     <|> (Zero <$ string "zero")
     <|> (Nat <$ string "Nat")
     <|> (Universe <$ string "Universe")
