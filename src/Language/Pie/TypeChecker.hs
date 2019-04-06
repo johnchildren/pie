@@ -34,6 +34,8 @@ import qualified Language.Pie.Eval             as Eval
 import           Language.Pie.Eval                        ( EvalError )
 import           Language.Pie.Expr                        ( CoreExpr(..)
                                                           , Clos(..)
+                                                          , Expr
+                                                          , toCore
                                                           )
 
 data TypeError = UnknownTypeError VarName
@@ -280,8 +282,8 @@ convert gamma tv v1 v2 = do
 
 
 -- please ignore this hack
-tyInteract :: Env Binding -> CoreExpr -> IO ()
-tyInteract gamma e = case synth gamma e of
+tyInteract :: Env Binding -> Expr -> IO ()
+tyInteract gamma e = case synth gamma (toCore e) of
   Right (CThe ty expr) -> do
     let rho = ctxToEnvironment gamma
     print ty

@@ -20,7 +20,6 @@ import qualified Data.Text.IO                  as Text
 import           Language.Pie.Parse                       ( parsePie
                                                           , parseErrorPretty
                                                           )
-import           Language.Pie.Print                       ( printPie )
 import qualified Language.Pie.Environment      as Env
 import           Language.Pie.TypeChecker                 ( tyInteract )
 
