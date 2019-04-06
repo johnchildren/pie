@@ -4,6 +4,7 @@ module Language.Pie.Values
   , Neutral(..)
   , Normal(..)
   , Env
+  , closName
   )
 where
 
@@ -12,6 +13,9 @@ import           Language.Pie.Symbols                     ( Symbol
                                                           , VarName
                                                           )
 import           Language.Pie.Expr                        ( CoreExpr )
+
+closName :: Closure -> VarName
+closName (CLOS _ v _) = v
 
 data Closure = CLOS (Env Value) VarName CoreExpr
            deriving(Show, Eq)

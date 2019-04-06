@@ -2,6 +2,7 @@ module Language.Pie.Eval
   ( EvalError(..)
   , val
   , valOfClosure
+  , doCar
   )
 where
 
@@ -67,11 +68,13 @@ val rho = cata val'
 
 doCar :: Value -> Either EvalError Value
 doCar (VCons    a            _ ) = Right a
+doCar (VSigma   a            _ ) = Right a -- TODO: Not sure if this is true
 doCar (VNeutral (VSigma a _) ne) = Right $ VNeutral a (NCar ne)
 doCar v                          = Left $ InvalidCar v
 
 doCdr :: Value -> Either EvalError Value
 doCdr (  VCons    _            d ) = Right d
+-- TODO: Cdr of sigma for non-neutral ?
 doCdr v@(VNeutral (VSigma _ d) ne) = do
   aVal  <- doCar v
   dClos <- valOfClosure d aVal

@@ -7,7 +7,7 @@ module Language.Pie.Judgement
   )
 where
 
-import           Language.Pie.TypeChecker                 ( TypeError
+import           Language.Pie.TypeChecker                 ( TypeError(..)
                                                           , Binding
                                                           , check
                                                           , convert
@@ -47,8 +47,9 @@ judgement2 ctx e1 e2 e3 =
         v2 <- val env (toCore e3)
         convert ctx t v1 v2
   in  case converted of
-        Right (c1, c2) -> if c1 == c2 then Yes else No
-        Left  err      -> TypeError err
+        Right (c1, c2)           -> if c1 == c2 then Yes else No
+        Left  UnificationError{} -> No
+        Left  err                -> TypeError err
 
 -- | Third form of judgement
 -- _____ is a type.
@@ -58,4 +59,6 @@ judgement3 ctx e = judgement4 ctx e e
 -- | Fourth form of judgement
 -- ______ and ______ are the same type.
 judgement4 :: Env Binding -> Expr -> Expr -> Judgement
-judgement4 ctx e1 = judgement2 ctx e1 Universe
+judgement4 ctx e1 e2 = case judgement2 ctx e1 Universe e2 of
+  TypeError (ReadBackError _ _) -> No
+  other                         -> other

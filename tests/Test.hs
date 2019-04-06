@@ -49,7 +49,14 @@ spec_eval = describe "Evaluating pie expression" $ do
                    (Pair (Car (Cons Atom (mkAtom "olive")))
                          (Cdr (Cons (mkAtom "oil") Atom))
                    )
-      `shouldBe` Right (VSigma VAtom (CLOS (Env.empty) (VarName "x") CAtom))
+      `shouldBe` Right
+                   (VSigma
+                     VAtom
+                     (CLOS Env.empty
+                           (VarName "dim")
+                           (CCdr (CCons (mkCoreAtom "oil") CAtom))
+                     )
+                   )
 
   describe "lambda expressions" $ do
     it "can apply lambda expressions"
@@ -149,15 +156,22 @@ spec_judgement = do
       `shouldBe` Yes
 
     it "normalises expressions"
-      $ judgement1 Env.empty
-                   (Car (Cons (mkAtom "courgette") (mkAtom "baguette")))
+      $          judgement1
+                   Env.empty
+                   (Car
+                     (The (Pair Atom Atom)
+                          (Cons (mkAtom "courgette") (mkAtom "baguette"))
+                     )
+                   )
                    Atom
       `shouldBe` Yes
 
     it "applies lambda expressions"
-      $          judgement1 Env.empty
-                            (App (mkLambda "x" (mkVar "x")) (mkAtom "foo"))
-                            Atom
+      $          judgement1
+                   Env.empty
+                   (App (The (Arrow Atom Atom) (mkLambda "x" (mkVar "x"))) (mkAtom "foo")
+                   )
+                   Atom
       `shouldBe` Yes
 
   describe "The second form of Judgement" $ do
@@ -234,7 +248,10 @@ mkVar :: Text -> Expr
 mkVar = Var . VarName
 
 mkLambda :: Text -> Expr -> Expr
-mkLambda x b = Lambda (VarName x) b
+mkLambda x = Lambda (VarName x)
 
 mkAtomVal :: Text -> Value
 mkAtomVal = VQuote . Symbol
+
+mkCoreAtom :: Text -> CoreExpr
+mkCoreAtom = CQuote . Symbol
