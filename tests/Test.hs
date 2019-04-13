@@ -53,7 +53,7 @@ spec_eval = describe "Evaluating pie expression" $ do
                    (VSigma
                      VAtom
                      (CLOS Env.empty
-                           (VarName "dim")
+                           (Dimmed "x")
                            (CCdr (CCons (mkCoreAtom "oil") CAtom))
                      )
                    )

@@ -55,6 +55,29 @@ parseLambdaExpr =
 parseAppExpr :: Parser Expr
 parseAppExpr = App <$> pieParser <*> (space1 >> pieParser)
 
+parseTypeVar :: Parser (VarName, Expr)
+parseTypeVar = parens $ do
+  x <- parseVarName
+  space1
+  ty <- pieParser
+  pure (x, ty)
+
+parsePiExpr :: Parser Expr
+parsePiExpr = do
+  _ <- string "Pi"
+  space1
+  (x, ty) <- parseTypeVar
+  space1
+  Pi x ty <$> pieParser
+
+parseSigmaExpr :: Parser Expr
+parseSigmaExpr = do
+  _ <- string "Sigma"
+  space1
+  (x, ty) <- parseTypeVar
+  space1
+  Sigma x ty <$> pieParser
+
 parsePieExpr :: Parser Expr
 parsePieExpr =
   parseBinaryExpr (The <$ string "the")
@@ -68,6 +91,8 @@ parsePieExpr =
     <|> parseTernaryExpr (RecNat <$ string "rec-Nat")
     <|> parseBinaryExpr (Arrow <$ string "->")
     <|> parseLambdaExpr
+    <|> parsePiExpr
+    <|> parseSigmaExpr
     <|> parseAppExpr
 
 pieParser :: Parser Expr
