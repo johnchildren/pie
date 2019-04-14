@@ -37,9 +37,12 @@ genExprs = Gen.recursive
   , Gen.subterm2 genExprs genExprs Pair
   , Gen.subterm genExprs Car
   , Gen.subterm genExprs Cdr
---  , Gen.subtermM2 genExprs
---                  genExprs
---                  (\x y -> Pie <$> genVarName <*> pure x <*> pure y)
+  , Gen.subtermM2 genExprs
+                  genExprs
+                  (\x y -> Pi <$> genVarName <*> pure x <*> pure y)
+  , Gen.subtermM2 genExprs
+                  genExprs
+                  (\x y -> Sigma <$> genVarName <*> pure x <*> pure y)
   , Gen.subterm2 genExprs genExprs Arrow
   , Gen.subtermM genExprs (\x -> Lambda <$> genVarName <*> pure x)
   , Gen.subterm2 genExprs genExprs App

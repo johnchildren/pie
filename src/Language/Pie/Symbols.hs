@@ -5,9 +5,15 @@ module Language.Pie.Symbols
 where
 
 import           Data.Text                                ( Text )
+import qualified Data.Text                     as Text
+import           GHC.Exts                                 ( IsString(..) )
 
 newtype Symbol = Symbol Text
-    deriving (Show, Eq)
+    deriving (Show, Eq, Ord)
 
-newtype VarName = VarName Text
+instance IsString Symbol where
+  fromString = Symbol . Text.pack
+
+data VarName = VarName Text
+             | Dimmed Text
     deriving (Show, Eq, Ord)

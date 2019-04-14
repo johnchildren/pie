@@ -85,16 +85,14 @@ toCore = cata toCore'
   toCore' (VarF v    )                 = CVar v
   toCore' AtomF                        = CAtom
   toCore' (QuoteF s      )             = CQuote s
-  -- TODO: do something about this varname, otherwise in for a world of pain
   -- | ΣF-Pair
-  toCore' (PairF e1 e2   )             = CSigma (VarName "dim") e1 (Clos e2)
+  toCore' (PairF e1 e2   )             = CSigma (Dimmed "x") e1 (Clos e2)
   toCore' (SigmaF v e1 e2)             = CSigma v e1 (Clos e2)
   toCore' (ConsF e1 e2   )             = CCons e1 e2
   toCore' (CarF pr       )             = CCar pr
   toCore' (CdrF pr       )             = CCdr pr
-  -- TODO: do something about this varname, otherwise in for a world of pain
   -- | FunF-→1
-  toCore' (ArrowF e1 e2  )             = CPi (VarName "dim") e1 (Clos e2)
+  toCore' (ArrowF e1 e2  )             = CPi (Dimmed "x") e1 (Clos e2)
   toCore' (PiF v e1 e2   )             = CPi v e1 (Clos e2)
   toCore' (LambdaF v  e  )             = CLambda v (Clos e)
   toCore' (AppF    e1 e2 )             = CApp e1 e2

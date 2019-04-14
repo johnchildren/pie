@@ -11,7 +11,7 @@ where
 
 import           Data.Maybe                               ( Maybe )
 import qualified Data.Map                      as Map
-import           Language.Pie.Symbols                     ( VarName )
+import           Language.Pie.Symbols                     ( VarName(..) )
 
 type Env a = Map.Map VarName a
 
