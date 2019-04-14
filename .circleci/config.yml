@@ -2,7 +2,7 @@ version: 2.1
 jobs:
   build:
     docker:
-      - image: haskell:latest
+      - image: nixos:nix
     steps:
       - checkout
       - restore_cache:
@@ -10,19 +10,10 @@ jobs:
           keys:
             - pie-v1-{{ checksum "pie.cabal" }}
       - run:
-          name: Update package list
-          command: cabal new-update
-      - run:
-          name: Configure
-          command: cabal new-configure
-      - run:
-          name: Run tests
-          command: cabal new-test
-      - run:
-          name: Build REPL
-          command: cabal new-build pie-repl
+          name: Build
+          command: nix build -v -f release.nix
       - save_cache:
           name: Cached Dependencies
           key: pie-v1-{{ checksum "pie.cabal" }}
           paths:
-            - "dist-newstyle"
+            - "/nix"

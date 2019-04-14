@@ -1,5 +1,5 @@
-{ nixpkgs ? import <nixpkgs> {} }:
-with nixpkgs;
+{ pkgs ? import <nixpkgs> {} }:
+with pkgs;
 stdenv.mkDerivation {
   name = "pie-dev-env";
   buildInputs = [

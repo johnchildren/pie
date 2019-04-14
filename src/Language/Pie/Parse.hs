@@ -2,7 +2,7 @@
 
 module Language.Pie.Parse
   ( parsePie
-  , parseErrorPretty
+  , errorBundlePretty
   )
 where
 
@@ -18,7 +18,7 @@ import           Language.Pie.Expr                        ( Expr(..) )
 
 type Parser = Parsec Void Text
 
-type PieParseError = ParseError Char Void
+type PieParseError = ParseErrorBundle Text Void
 
 parens :: Parser a -> Parser a
 parens = between (char '(') (char ')')
