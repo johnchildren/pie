@@ -1,4 +1,4 @@
-{ pkgs ? import <nixpkgs> {}, compiler ? "ghc864" }:
+{ pkgs ? import ./nix {}, compiler ? "ghc864" }:
 {
   pie = pkgs.haskell.packages.${compiler}.callPackage ./default.nix {};
 }
