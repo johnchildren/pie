@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/johnchildren/pie.svg?style=svg)](https://circleci.com/gh/johnchildren/pie)
+[![Build Status](https://travis-ci.org/johnchildren/pie.svg?branch=master)](https://travis-ci.org/johnchildren/pie)
 
 # pie
 
