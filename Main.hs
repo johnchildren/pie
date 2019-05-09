@@ -18,7 +18,7 @@ import           System.Console.Repline                   ( HaskelineT
 import           Data.Text                     as Text
 import qualified Data.Text.IO                  as Text
 import           Language.Pie.Parse                       ( parsePie
-                                                          , parseErrorPretty
+                                                          , errorBundlePretty
                                                           )
 import qualified Language.Pie.Environment      as Env
 import           Language.Pie.TypeChecker                 ( tyInteract )
@@ -31,7 +31,7 @@ type Repl a = HaskelineT IO a
 cmd :: (MonadIO m) => Command (HaskelineT m)
 cmd input = liftIO $ case parsePie (Text.pack input) of
   Right expr -> tyInteract Env.empty expr
-  Left  err  -> putStrLn $ parseErrorPretty err
+  Left  err  -> putStrLn $ errorBundlePretty err
 
 completer :: Monad m => WordCompleter m
 completer _ = pure []
