@@ -9,7 +9,6 @@ module Language.Pie.TypeChecker
   , convert
   , val
   , ctxToEnvironment
-  , tyInteract
   , readBackNorm
   , TypeError(..)
   , Binding
@@ -34,8 +33,6 @@ import qualified Language.Pie.Eval             as Eval
 import           Language.Pie.Eval                        ( EvalError )
 import           Language.Pie.Expr                        ( CoreExpr(..)
                                                           , Clos(..)
-                                                          , Expr
-                                                          , toCore
                                                           )
 
 data TypeError = UnknownTypeError VarName
@@ -95,12 +92,12 @@ readBackNeutral gamma = readBackNeutral'
       <*> readBackNorm gamma base
       <*> (Clos <$> readBackNorm gamma step)
   readBackNeutral' (NIterNat ne base step) =
-    CWhichNat
+    CIterNat
       <$> readBackNeutral gamma ne
       <*> readBackNorm gamma base
       <*> (Clos <$> readBackNorm gamma step)
   readBackNeutral' (NRecNat ne base step) =
-    CWhichNat
+    CRecNat
       <$> readBackNeutral gamma ne
       <*> readBackNorm gamma base
       <*> (Clos <$> readBackNorm gamma step)
@@ -279,18 +276,3 @@ convert gamma tv v1 v2 = do
   e2 <- readBackNorm gamma (NormThe tv v2)
   t  <- readBackNorm gamma (NormThe VUniverse tv)
   if alphaEquiv e1 e2 then Right (e1, e2) else Left $ UnificationError e1 t e2
-
-
--- please ignore this hack
-tyInteract :: Env Binding -> Expr -> IO ()
-tyInteract gamma e = case synth gamma (toCore e) of
-  Right (CThe ty expr) -> do
-    let rho = ctxToEnvironment gamma
-    print ty
-    case val rho ty of
-      Right tyVal -> case val rho expr of
-        Right exprVal -> print $ readBackNorm gamma (NormThe tyVal exprVal)
-        Left  err     -> print err
-      Left err -> print err
-  Right _   -> putStrLn "unexpected result from synth"
-  Left  err -> print err
