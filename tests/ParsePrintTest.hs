@@ -11,13 +11,14 @@ import           Language.Pie.Symbols                     ( Symbol(..)
                                                           )
 import           Language.Pie.Parse                       ( parsePie )
 import           Language.Pie.Print                       ( printPie )
-import           Language.Pie.Expr                        ( Expr(..)
-                                                          , Clos(..)
-                                                          )
+import           Language.Pie.Expr                        ( Expr(..) )
 
 
 genVarName :: Gen VarName
-genVarName = VarName <$> Gen.text (Range.constant 1 10) Gen.alpha
+genVarName =
+  Gen.choice
+    $   (\x -> x <$> Gen.text (Range.constant 1 10) Gen.alpha)
+    <$> [VarName] -- TODO: support Dimmed?
 
 genSymbol :: Gen Symbol
 genSymbol = Symbol <$> Gen.text (Range.constant 1 10) Gen.alpha
@@ -31,6 +32,7 @@ genExprs = Gen.recursive
   , Gen.constant Nat
   , Gen.constant Zero
   , Gen.constant Universe
+  , Int <$> Gen.integral (Range.constant 0 100)
   ]
   [ Gen.subterm2 genExprs genExprs The
   , Gen.subterm2 genExprs genExprs Cons

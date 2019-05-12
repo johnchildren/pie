@@ -98,6 +98,7 @@ parsePieExpr =
 pieParser :: Parser Expr
 pieParser =
   (Atom <$ string "Atom")
+    <|> (Int . read <$> some numberChar)
     <|> (Quote <$> symbol)
     <|> (Zero <$ string "zero")
     <|> (Nat <$ string "Nat")
