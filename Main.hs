@@ -1,45 +1,42 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Main
   ( main
   )
 where
 
-import           Control.Monad.IO.Class                   ( MonadIO
-                                                          , liftIO
+import           Control.Monad.Trans.State.Strict         ( evalStateT )
+import           Control.Monad.Trans.Class                ( lift )
+import           Control.Monad.Trans.Except               ( runExceptT
+                                                          , ExceptT(..)
                                                           )
-import           System.Console.Repline                   ( HaskelineT
-                                                          , Command
-                                                          , Cmd
-                                                          , Options
-                                                          , CompleterStyle(..)
-                                                          , WordCompleter
-                                                          , evalRepl
-                                                          )
+import           Control.Monad.IO.Class                   ( liftIO )
+import           System.Console.Repline
 import qualified Data.Text                     as Text
 import qualified Data.Text.IO                  as Text
 import           System.Exit                              ( exitSuccess )
-import           Language.Pie.Print                       ( printPie )
-import           Language.Pie.Parse                       ( parsePie
-                                                          , errorBundlePretty
+import           System.Console.Haskeline.MonadException  ( MonadException
+                                                          , controlIO
+                                                          , RunIO(..)
                                                           )
-import           Language.Pie.Expr                        ( toCore
-                                                          , fromCore
+import           Language.Pie.Interpreter                 ( Interpreter
+                                                          , run
                                                           )
 import qualified Language.Pie.Environment      as Env
-import           Language.Pie.TypeChecker                 ( synth )
 
 
 
+instance (MonadException m) => MonadException (ExceptT e m) where
+  controlIO f = ExceptT $ controlIO $ \(RunIO run) ->
+    let run' = RunIO (fmap ExceptT . run . runExceptT)
+    in  fmap runExceptT $ f run'
 
-type Repl a = HaskelineT IO a
+type Repl a = HaskelineT Interpreter a
 
-cmd :: (MonadIO m) => Command (HaskelineT m)
-cmd input = liftIO $ case parsePie (Text.pack input) of
-  Right expr -> case synth Env.empty (toCore expr) of
-    Right typedExpr -> Text.putStrLn . printPie $ fromCore typedExpr
-    Left  err       -> print err
-  Left err -> putStrLn $ errorBundlePretty err
+cmd :: String -> Repl ()
+cmd s = lift $ run (Text.pack s)
 
 completer :: Monad m => WordCompleter m
 completer n = do
@@ -60,14 +57,17 @@ completer n = do
         , "which-Nat"
         , "iter-Nat"
         , "rec-Nat"
+        , "List"
+        , "nil"
+        , "::"
         , "Universe"
         ]
   return $ Text.unpack <$> filter (Text.isPrefixOf (Text.pack n)) keywords
 
-options :: (MonadIO m) => Options (HaskelineT m)
+options :: [(String, [String] -> Repl ())]
 options = [("quit", quit)]
 
-quit :: (MonadIO m) => Cmd (HaskelineT m)
+quit :: [String] -> Repl ()
 quit _ = liftIO exitSuccess
 
 ini :: Repl ()
@@ -75,4 +75,14 @@ ini = liftIO
   $ Text.putStrLn "Welcome to pie! Each line will be evaluated as an expr!"
 
 main :: IO ()
-main = evalRepl (pure "Pie> ") cmd options (Just ':') (Word completer) ini
+main =
+  (runExceptT $ flip evalStateT Env.empty $ evalRepl (pure "Pie> ")
+                                                     cmd
+                                                     options
+                                                     (Just ':')
+                                                     (Word completer)
+                                                     ini
+    )
+    >>= \s -> case s of
+          Left  err -> print err
+          Right ()  -> pure ()

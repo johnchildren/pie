@@ -2,7 +2,10 @@
 
 module Language.Pie.Parse
   ( parsePie
+  , parsePieStatement
   , errorBundlePretty
+  , Statement(..)
+  , PieParseError
   )
 where
 
@@ -23,6 +26,9 @@ type PieParseError = ParseErrorBundle Text Void
 parens :: Parser a -> Parser a
 parens = between (char '(') (char ')')
 
+rword :: Text -> Parser ()
+rword w = string w *> notFollowedBy alphaNumChar
+
 -- Symbols must only contain letters and hyphens
 symbol :: Parser Symbol
 symbol = do
@@ -30,81 +36,142 @@ symbol = do
   val <- some (letterChar <|> char '-')
   pure $ Symbol (Text.pack val)
 
-parseVarName :: Parser VarName
-parseVarName = VarName . Text.pack <$> some letterChar
+rws :: [String] -- list of reserved words
+rws =
+  [ "lambda"
+  , "Pi"
+  , "Sigma"
+  , "the"
+  , "Pair"
+  , "cons"
+  , "car"
+  , "cdr"
+  , "add1"
+  , "which-Nat"
+  , "iter-Nat"
+  , "rec-Nat"
+  , "->"
+  , "List"
+  , "::"
+  , "Atom"
+  , "zero"
+  , "Nat"
+  , "nil"
+  , "Universe"
+  , "define"
+  ]
 
-parseUnaryExpr :: Parser (Expr -> Expr) -> Parser Expr
-parseUnaryExpr p = p <*> (space1 >> pieParser)
+identifier :: Parser String
+identifier = p >>= check
+ where
+  p = (:) <$> letterChar <*> many alphaNumChar
+  check x = if x `elem` rws
+    then fail $ "keyword " ++ show x ++ " cannot be an identifier"
+    else return x
 
-parseBinaryExpr :: Parser (Expr -> Expr -> Expr) -> Parser Expr
-parseBinaryExpr p = p <*> (space1 >> pieParser) <*> (space1 >> pieParser)
+varNameParser :: Parser VarName
+varNameParser = VarName . Text.pack <$> identifier
 
-parseTernaryExpr :: Parser (Expr -> Expr -> Expr -> Expr) -> Parser Expr
-parseTernaryExpr p =
+mkUnaryExprParser :: Parser (Expr -> Expr) -> Parser Expr
+mkUnaryExprParser p = p <*> (space1 >> pieParser)
+
+mkBinaryExprParser :: Parser (Expr -> Expr -> Expr) -> Parser Expr
+mkBinaryExprParser p = p <*> (space1 >> pieParser) <*> (space1 >> pieParser)
+
+mkTernaryExprParser :: Parser (Expr -> Expr -> Expr -> Expr) -> Parser Expr
+mkTernaryExprParser p =
   p
     <*> (space1 >> pieParser)
     <*> (space1 >> pieParser)
     <*> (space1 >> pieParser)
 
-parseLambdaExpr :: Parser Expr
-parseLambdaExpr =
-  (Lambda <$ string "lambda")
-    <*> (space1 >> parens parseVarName)
+lambdaExprParser :: Parser Expr
+lambdaExprParser =
+  (Lambda <$ rword "lambda")
+    <*> (space1 >> parens varNameParser)
     <*> (space1 >> pieParser)
 
-parseAppExpr :: Parser Expr
-parseAppExpr = App <$> pieParser <*> (space1 >> pieParser)
+appExprParser :: Parser Expr
+appExprParser = App <$> pieParser <*> (space1 >> pieParser)
 
-parseTypeVar :: Parser (VarName, Expr)
-parseTypeVar = parens $ do
-  x <- parseVarName
+typeVarParser :: Parser (VarName, Expr)
+typeVarParser = parens $ do
+  x <- varNameParser
   space1
   ty <- pieParser
   pure (x, ty)
 
-parsePiExpr :: Parser Expr
-parsePiExpr = do
-  _ <- string "Pi"
+spacedTypeVarParser :: Parser (VarName, Expr)
+spacedTypeVarParser = do
   space1
-  (x, ty) <- parseTypeVar
+  pair <- typeVarParser
   space1
+  pure pair
+
+piExprParser :: Parser Expr
+piExprParser = do
+  _       <- rword "Pi"
+  (x, ty) <- spacedTypeVarParser
   Pi x ty <$> pieParser
 
-parseSigmaExpr :: Parser Expr
-parseSigmaExpr = do
-  _ <- string "Sigma"
-  space1
-  (x, ty) <- parseTypeVar
-  space1
+sigmaExprParser :: Parser Expr
+sigmaExprParser = do
+  _       <- rword "Sigma"
+  (x, ty) <- spacedTypeVarParser
   Sigma x ty <$> pieParser
 
-parsePieExpr :: Parser Expr
-parsePieExpr =
-  parseBinaryExpr (The <$ string "the")
-    <|> parseBinaryExpr (Pair <$ string "Pair")
-    <|> parseBinaryExpr (Cons <$ string "cons")
-    <|> parseUnaryExpr (Car <$ string "car")
-    <|> parseUnaryExpr (Cdr <$ string "cdr")
-    <|> parseUnaryExpr (Add1 <$ string "add1")
-    <|> parseTernaryExpr (WhichNat <$ string "which-Nat")
-    <|> parseTernaryExpr (IterNat <$ string "iter-Nat")
-    <|> parseTernaryExpr (RecNat <$ string "rec-Nat")
-    <|> parseBinaryExpr (Arrow <$ string "->")
-    <|> parseLambdaExpr
-    <|> parsePiExpr
-    <|> parseSigmaExpr
-    <|> parseAppExpr
+-- Parse an expression in parenthesis (i.e one where application occurs)
+parensPieExprParser :: Parser Expr
+parensPieExprParser =
+  parens
+    $   mkBinaryExprParser (The <$ rword "the")
+    <|> mkBinaryExprParser (Pair <$ rword "Pair")
+    <|> mkBinaryExprParser (Cons <$ rword "cons")
+    <|> mkUnaryExprParser (Car <$ rword "car")
+    <|> mkUnaryExprParser (Cdr <$ rword "cdr")
+    <|> mkUnaryExprParser (Add1 <$ rword "add1")
+    <|> mkTernaryExprParser (WhichNat <$ rword "which-Nat")
+    <|> mkTernaryExprParser (IterNat <$ rword "iter-Nat")
+    <|> mkTernaryExprParser (RecNat <$ rword "rec-Nat")
+    <|> mkBinaryExprParser (Arrow <$ rword "->")
+    <|> mkUnaryExprParser (List <$ rword "List")
+    <|> mkBinaryExprParser (ListExp <$ rword "::")
+    <|> lambdaExprParser
+    <|> piExprParser
+    <|> sigmaExprParser
+    -- other application
+    <|> appExprParser
 
 pieParser :: Parser Expr
 pieParser =
-  (Atom <$ string "Atom")
+  (Atom <$ rword "Atom")
     <|> (Int . read <$> some numberChar)
     <|> (Quote <$> symbol)
-    <|> (Zero <$ string "zero")
-    <|> (Nat <$ string "Nat")
-    <|> (Universe <$ string "Universe")
-    <|> (Var <$> parseVarName)
-    <|> parens parsePieExpr
+    <|> (Zero <$ rword "zero")
+    <|> (Nat <$ rword "Nat")
+    <|> (Nil <$ rword "nil")
+    <|> (Universe <$ rword "Universe")
+    <|> (Var <$> varNameParser)
+    <|> parensPieExprParser
+
+
+defineParser :: Parser (VarName, Expr)
+defineParser = parens $ do
+  _ <- rword "define"
+  space1
+  name <- varNameParser
+  space1
+  expr <- pieParser
+  return (name, expr)
+
+data Statement = Define VarName Expr
+               | RawExpr Expr
+
+statementParser :: Parser Statement
+statementParser = try (uncurry Define <$> defineParser) <|> (RawExpr <$> pieParser)
 
 parsePie :: Text -> Either PieParseError Expr
 parsePie = parse (pieParser <* eof) "<lit>"
+
+parsePieStatement :: Text -> Either PieParseError Statement
+parsePieStatement = parse (statementParser <* eof) "<stmt>"

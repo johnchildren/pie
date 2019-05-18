@@ -1,6 +1,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TupleSections #-}
 
 module Language.Pie.TypeChecker
   ( alphaEquiv
@@ -11,15 +12,12 @@ module Language.Pie.TypeChecker
   , ctxToEnvironment
   , readBackNorm
   , TypeError(..)
-  , Binding
+  , Binding(..)
   )
 where
 
 
 import           Data.Bifunctor                           ( first )
-import           Control.Monad.Fail                       ( MonadFail
-                                                          , fail
-                                                          )
 import           Language.Pie.Symbols                     ( VarName(..) )
 import           Language.Pie.Environment                 ( Env )
 import qualified Language.Pie.Environment      as Env
@@ -67,7 +65,9 @@ readBackNorm gamma (NormThe typ expr) = readBackNorm' typ expr
   readBackNorm' VUniverse VNat       = Right CNat
   readBackNorm' VUniverse VAtom      = Right CAtom
   readBackNorm' VUniverse VUniverse  = Right CUniverse -- TODO: Not true
-  readBackNorm' VUniverse (VPi a b)  = do
+  readBackNorm' VUniverse (VList xs) =
+    CList <$> readBackNorm gamma (NormThe VUniverse xs)
+  readBackNorm' VUniverse (VPi a b) = do
     let x = closName b
         y = freshen gamma x
     closVal <- valOfClosure b (VNeutral a (NVar y))
@@ -108,6 +108,8 @@ isAtomic :: CoreExpr -> Bool
 isAtomic CAtom     = True
 isAtomic CNat      = True
 isAtomic CZero     = True
+-- ListSame-nil
+isAtomic CNil      = True
 isAtomic CUniverse = True
 isAtomic _         = False
 
@@ -146,86 +148,93 @@ alphaEquiv' (CPi x a1 (Clos b1)) (CPi y a2 (Clos b2)) xs1 xs2 =
        in  let bigger1 = Env.insert x fresh xs1
                bigger2 = Env.insert y fresh xs2
            in  alphaEquiv' b1 b2 bigger1 bigger2
+alphaEquiv' (CList x) (CList y) env1 env2 = alphaEquiv' x y env1 env2
+alphaEquiv' (CListExp x xs) (CListExp y ys) env1 env2 =
+  alphaEquiv' x y env1 env2 && alphaEquiv' xs ys env1 env2
 alphaEquiv' _ _ _ _ = False
 
 lookupType :: VarName -> Env Binding -> Either TypeError Value
 lookupType name ctx = case Env.lookup name ctx of
   Nothing               -> Left $ UnknownVariableError name
   Just (FreeVar t     ) -> Right t
-  Just (Definition _ t) -> Right t
+  Just (Definition t _) -> Right t
 
 
-instance MonadFail (Either TypeError) where
-  fail = Left . NotNormalisedError
-
-synth :: Env Binding -> CoreExpr -> Either TypeError CoreExpr
+-- Construct a tuple of type and expression
+synth :: Env Binding -> CoreExpr -> Either TypeError (CoreExpr, CoreExpr)
 synth gamma = synth'
  where
-  synth' :: CoreExpr -> Either TypeError CoreExpr
+  synth' :: CoreExpr -> Either TypeError (CoreExpr, CoreExpr)
   synth' (CThe typ expr) = do
     tOut <- check gamma typ VUniverse
     tVal <- val (ctxToEnvironment gamma) tOut
     eOut <- check gamma expr tVal
-    Right $ CThe tOut eOut
-  synth' CUniverse             = Right $ CThe CUniverse CUniverse
+    Right (tOut, eOut)
+  synth' CUniverse             = Right (CUniverse, CUniverse)
   synth' (CSigma x a (Clos d)) = do
     aOut <- check gamma a VUniverse
     aVal <- val (ctxToEnvironment gamma) aOut
     dOut <- check (extendCtx gamma x aVal) d VUniverse
-    Right $ CThe CUniverse (CSigma x aOut (Clos dOut))
+    Right (CUniverse, CSigma x aOut (Clos dOut))
   synth' (CCar pr) = do
-    (CThe prTy prOut) <- synth gamma pr
-    prTyVal           <- val (ctxToEnvironment gamma) prTy
+    (prTy, prOut) <- synth gamma pr
+    prTyVal       <- val (ctxToEnvironment gamma) prTy
     case prTyVal of
       (VSigma a _) ->
-        (\t -> CThe t (CCar prOut)) <$> readBackNorm gamma (NormThe VUniverse a)
+        (, CCar prOut) <$> readBackNorm gamma (NormThe VUniverse a)
       other -> do
         otherVal <- readBackNorm gamma (NormThe VUniverse other)
         Left $ NonPairError otherVal
   synth' (CCdr pr) = do
-    (CThe prTy prOut) <- synth gamma pr
-    prTyVal           <- val (ctxToEnvironment gamma) prTy
+    (prTy, prOut) <- synth gamma pr
+    prTyVal       <- val (ctxToEnvironment gamma) prTy
     case prTyVal of
       (VSigma _ d) -> do
         prOutVal <- val (ctxToEnvironment gamma) prOut
         theCar   <- doCar prOutVal
         closVal  <- valOfClosure d theCar
         ty       <- readBackNorm gamma (NormThe VUniverse closVal)
-        Right $ CThe ty (CCar prOut)
+        Right (ty, CCar prOut)
       other -> do
         otherVal <- readBackNorm gamma (NormThe VUniverse other)
         Left $ NonPairError otherVal
-  synth' CNat               = Right $ CThe CUniverse CNat
+  synth' CNat               = Right (CUniverse, CNat)
   synth' (CPi x a (Clos b)) = do
     aOut <- check gamma a VUniverse
     aVal <- val (ctxToEnvironment gamma) aOut
     bOut <- check (extendCtx gamma x aVal) b VUniverse
-    Right $ CThe CUniverse (CPi x aOut (Clos bOut))
+    Right (CUniverse, CPi x aOut (Clos bOut))
   -- Atom is a Universe
-  synth' CAtom             = Right $ CThe CUniverse CAtom
+  synth' CAtom             = Right (CUniverse, CAtom)
   synth' (CApp rator rand) = do
-    (CThe ratorT ratorOut) <- synth gamma rator
-    ratorTVal              <- val (ctxToEnvironment gamma) ratorT
-    case ratorTVal of
+    (ratorTy, ratorOut) <- synth gamma rator
+    ratorTyVal          <- val (ctxToEnvironment gamma) ratorTy
+    case ratorTyVal of
       (VPi a b) -> do
         randOut     <- check gamma rand a
         randOutVal  <- val (ctxToEnvironment gamma) randOut
         randOutClos <- valOfClosure b randOutVal
-        (`CThe` ratorOut) <$> readBackNorm gamma (NormThe VUniverse randOutClos)
+        (, ratorOut) <$> readBackNorm gamma (NormThe VUniverse randOutClos)
       other -> do
         otherVal <- readBackNorm gamma (NormThe VUniverse other)
         Left $ UnexpectedPiTypeError otherVal
-  synth' q@(CQuote _) = Right $ CThe CAtom q
+  synth' q@(CQuote _) = Right (CAtom, q)
   -- Zero is a Nat
-  synth' CZero        = Right $ CThe CNat CZero
+  synth' CZero        = Right (CNat, CZero)
   -- if n in a@(Add1 n) is a Nat, a is a Nat
   synth' a@(CAdd1 n)  = do
     _ <- check gamma n VNat
-    Right $ CThe CNat a
+    Right (CNat, a)
+  -- ListI-2
+  synth' (CListExp e es) = do
+    (eTy, eOut) <- synth gamma e
+    eTyVal      <- val (ctxToEnvironment gamma) eTy
+    esOut       <- check gamma es (VList eTyVal)
+    Right (CList eTy, CListExp eOut esOut)
   synth' (CVar x) = do
     tVal <- lookupType x gamma
     t    <- readBackNorm gamma (NormThe VUniverse tVal)
-    Right $ CThe t (CVar x)
+    Right (t, CVar x)
   synth' other = Left $ TypeSynthesisError other
 
 
@@ -248,11 +257,13 @@ check gamma = check'
     cClos <- valOfClosure c xVal
     bOut  <- check (extendCtx gamma x a) b cClos
     Right $ CLambda x (Clos bOut)
-  check' (CQuote s) VAtom = Right $ CQuote s
-  check' e          t     = do
-    (CThe tOut eOut) <- synth gamma e
-    tVal             <- val (ctxToEnvironment gamma) tOut
-    _                <- convert gamma VUniverse t tVal
+  check' (CQuote s) VAtom     = Right $ CQuote s
+  -- ListI-1
+  check' CNil       (VList _) = Right CNil
+  check' e          t         = do
+    (tOut, eOut) <- synth gamma e
+    tVal         <- val (ctxToEnvironment gamma) tOut
+    _            <- convert gamma VUniverse t tVal
     Right eOut
 
 ctxToEnvironment :: Env Binding -> Env Value

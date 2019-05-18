@@ -30,6 +30,9 @@ data Value = VPi Value Closure
            | VAtom
            | VQuote Symbol
            | VUniverse
+           | VList Value
+           | VNil
+           | VListExp Value Value
            | VNeutral Value Neutral
            deriving(Show, Eq)
 

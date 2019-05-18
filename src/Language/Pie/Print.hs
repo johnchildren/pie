@@ -66,4 +66,7 @@ printPie = renderStrict . layoutPretty defaultLayoutOptions . cata printPie'
   printPie' (WhichNatF e1 e2 e3) = printTernaryExpr "which-Nat" e1 e2 e3
   printPie' (IterNatF  e1 e2 e3) = printTernaryExpr "iter-Nat" e1 e2 e3
   printPie' (RecNatF   e1 e2 e3) = printTernaryExpr "rec-Nat" e1 e2 e3
+  printPie' (ListF e           ) = printUnaryExpr "List" e
+  printPie' NilF                 = "nil"
+  printPie' (ListExpF e1 e2)     = printBinaryExpr "::" e1 e2
   printPie' UniverseF            = "Universe"
