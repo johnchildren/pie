@@ -44,6 +44,9 @@ data Expr = The Expr Expr
          | WhichNat Expr Expr Expr
          | IterNat Expr Expr Expr
          | RecNat Expr Expr Expr
+         | List Expr
+         | Nil
+         | ListExp Expr Expr
          | Universe
         deriving (Show, Eq)
 
@@ -71,6 +74,9 @@ data CoreExpr = CThe CoreExpr CoreExpr
          | CWhichNat CoreExpr CoreExpr Clos
          | CIterNat CoreExpr CoreExpr Clos
          | CRecNat CoreExpr CoreExpr Clos
+         | CList CoreExpr
+         | CNil
+         | CListExp CoreExpr CoreExpr
          | CUniverse
         deriving (Show, Eq)
 
@@ -104,6 +110,9 @@ toCore = cata toCore'
   toCore' (WhichNatF target base step) = CWhichNat target base (Clos step)
   toCore' (IterNatF  target base step) = CIterNat target base (Clos step)
   toCore' (RecNatF   target base step) = CRecNat target base (Clos step)
+  toCore' (ListF e                   ) = CList e
+  toCore' NilF                         = CNil
+  toCore' (ListExpF e1 e2)             = CListExp e1 e2
   toCore' UniverseF                    = CUniverse
 
 
@@ -140,4 +149,7 @@ fromCore = cata fromCore'
     IterNat target base (fromCore step)
   fromCore' (CRecNatF target base (Clos step)) =
     RecNat target base (fromCore step)
-  fromCore' CUniverseF = Universe
+  fromCore' (CListF e)        = List e
+  fromCore' CNilF             = Nil
+  fromCore' (CListExpF e1 e2) = ListExp e1 e2
+  fromCore' CUniverseF        = Universe

@@ -42,8 +42,7 @@ val :: Env Value -> CoreExpr -> Either EvalError Value
 val rho = cata val'
  where
   val' :: Algebra CoreExpr (Either EvalError Value)
-  val' (CTheF _ expr)         = expr
-  val' CUniverseF             = Right VUniverse
+  val' (CTheF _ expr        ) = expr
   val' (CPiF x a (Clos b)   ) = (\y -> VPi y (CLOS rho x b)) <$> a
   val' (CLambdaF x (Clos b) ) = Right $ VLambda (CLOS rho x b)
   val' (CSigmaF x a (Clos d)) = (\y -> VSigma y (CLOS rho x d)) <$> a
@@ -62,9 +61,13 @@ val rho = cata val'
     join $ doIterNat rho step <$> target <*> base
   val' (CRecNatF target base step) =
     join $ doRecNat rho step <$> target <*> base
-  val' (CVarF x) = case Env.lookup x rho of
+  val' (CListF e)      = VList <$> e
+  val' CNilF           = Right VNil
+  val' (CListExpF a d) = VListExp <$> a <*> d
+  val' (CVarF x      ) = case Env.lookup x rho of
     Just v  -> Right v
     Nothing -> Left $ UnknownVariableError x
+  val' CUniverseF = Right VUniverse
 
 doCar :: Value -> Either EvalError Value
 doCar (VCons    a            _ ) = Right a
