@@ -3,6 +3,8 @@ module Language.Pie.Eval
   , val
   , valOfClosure
   , doCar
+  , doCdr
+  , doApp
   )
 where
 

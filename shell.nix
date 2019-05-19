@@ -4,6 +4,8 @@ stdenv.mkDerivation {
   name = "pie-dev-env";
   buildInputs = [
     pkgs.niv
+    pkgs.ghc
+    pkgs.cabal-install
 
     haskellPackages.tasty-discover
   ];

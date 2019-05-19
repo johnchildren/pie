@@ -54,28 +54,59 @@ valOfClosure cl v = first NbEError $ Eval.valOfClosure cl v
 doCar :: Value -> Either TypeError Value
 doCar v = first NbEError $ Eval.doCar v
 
+doCdr :: Value -> Either TypeError Value
+doCdr v = first NbEError $ Eval.doCdr v
+
+doApp :: Value -> Value -> Either TypeError Value
+doApp f v = first NbEError $ Eval.doApp f v
+
 -- read back a normalised value
 readBackNorm :: Env Binding -> Normal -> Either TypeError CoreExpr
 readBackNorm gamma (NormThe typ expr) = readBackNorm' typ expr
  where
   readBackNorm' :: Value -> Value -> Either TypeError CoreExpr
-  readBackNorm' VNat      VZero      = Right CZero
-  readBackNorm' VNat (VAdd1 n) = CAdd1 <$> readBackNorm gamma (NormThe VNat n)
+  readBackNorm' VNat      VZero     = Right CZero
+  readBackNorm' VNat      (VAdd1 n) = CAdd1 <$> readBackNorm' VNat n
+  readBackNorm' (VPi a b) f         = do
+    let x    = closName b
+        y    = freshen gamma x
+        yVal = VNeutral a (NVar y)
+    fVal  <- doApp f yVal
+    fTy   <- valOfClosure b yVal
+    fExpr <- readBackNorm (extendCtx gamma y a) (NormThe fTy fVal)
+    Right $ CLambda y (Clos fExpr)
+  readBackNorm' (VSigma a d) p = do
+    theCar <- doCar p
+    theCdr <- doCdr p
+    dTy    <- valOfClosure d theCdr
+    aExpr  <- readBackNorm' a theCar
+    dExpr  <- readBackNorm' dTy theCdr
+    Right $ CCons aExpr dExpr
   readBackNorm' VAtom     (VQuote x) = Right $ CQuote x
   readBackNorm' VUniverse VNat       = Right CNat
   readBackNorm' VUniverse VAtom      = Right CAtom
-  readBackNorm' VUniverse VUniverse  = Right CUniverse -- TODO: Not true
   readBackNorm' VUniverse (VList xs) =
     CList <$> readBackNorm gamma (NormThe VUniverse xs)
-  readBackNorm' VUniverse (VPi a b) = do
-    let x = closName b
-        y = freshen gamma x
-    closVal <- valOfClosure b (VNeutral a (NVar y))
-    aExpr   <- readBackNorm gamma (NormThe VUniverse a)
-    bExpr   <- readBackNorm (extendCtx gamma y a) (NormThe VUniverse closVal)
-    Right $ CPi y aExpr (Clos bExpr)
-  readBackNorm' _ (VNeutral _ ne) = readBackNeutral gamma ne
-  readBackNorm' t v               = Left $ ReadBackError t v
+  readBackNorm' VUniverse (VSigma a b)    = readBackSigmaPi CSigma gamma a b
+  readBackNorm' VUniverse (VPi    a b)    = readBackSigmaPi CPi gamma a b
+  readBackNorm' VUniverse VUniverse       = Right CUniverse -- TODO: Not true
+  readBackNorm' _         (VNeutral _ ne) = readBackNeutral gamma ne
+  readBackNorm' t         v               = Left $ ReadBackError t v
+
+readBackSigmaPi
+  :: (VarName -> CoreExpr -> Clos -> CoreExpr)
+  -> Env Binding
+  -> Value
+  -> Closure
+  -> Either TypeError CoreExpr
+readBackSigmaPi constructor gamma a b = do
+  let x = closName b
+      y = freshen gamma x
+  closVal <- valOfClosure b (VNeutral a (NVar y))
+  aExpr   <- readBackNorm gamma (NormThe VUniverse a)
+  bExpr   <- readBackNorm (extendCtx gamma y a) (NormThe VUniverse closVal)
+  Right $ constructor y aExpr (Clos bExpr)
+
 
 readBackNeutral :: Env Binding -> Neutral -> Either TypeError CoreExpr
 readBackNeutral gamma = readBackNeutral'
@@ -119,7 +150,16 @@ data Binding = Definition { _type :: Value, _value :: Value }
              | FreeVar { _type :: Value }
 
 freshen :: Env Binding -> VarName -> VarName
-freshen _ _ = VarName "foo"
+freshen ctx (VarName sym) =
+  let newV = (VarName $ sym <> "*")
+  in  case Env.lookup newV ctx of
+        Nothing -> newV
+        Just _  -> freshen ctx newV
+freshen ctx (Dimmed sym) =
+  let newV = (Dimmed $ sym <> "*")
+  in  case Env.lookup newV ctx of
+        Nothing -> newV
+        Just _  -> freshen ctx newV
 
 -- generate a symbol not in either environment
 freshen2 :: Bindings -> Bindings -> VarName
@@ -214,7 +254,8 @@ synth gamma = synth'
         randOut     <- check gamma rand a
         randOutVal  <- val (ctxToEnvironment gamma) randOut
         randOutClos <- valOfClosure b randOutVal
-        (, ratorOut) <$> readBackNorm gamma (NormThe VUniverse randOutClos)
+        tyOut       <- readBackNorm gamma (NormThe VUniverse randOutClos)
+        Right (tyOut, CApp ratorOut randOut)
       other -> do
         otherVal <- readBackNorm gamma (NormThe VUniverse other)
         Left $ UnexpectedPiTypeError otherVal

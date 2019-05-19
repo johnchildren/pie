@@ -155,6 +155,15 @@ pieParser =
     <|> parensPieExprParser
 
 
+claimParser :: Parser (VarName, Expr)
+claimParser = parens $ do
+  _ <- rword "claim"
+  space1
+  name <- varNameParser
+  space1
+  expr <- pieParser
+  return (name, expr)
+
 defineParser :: Parser (VarName, Expr)
 defineParser = parens $ do
   _ <- rword "define"
@@ -164,11 +173,12 @@ defineParser = parens $ do
   expr <- pieParser
   return (name, expr)
 
-data Statement = Define VarName Expr
+data Statement = Claim VarName Expr
+               | Define VarName Expr
                | RawExpr Expr
 
 statementParser :: Parser Statement
-statementParser = try (uncurry Define <$> defineParser) <|> (RawExpr <$> pieParser)
+statementParser = try (uncurry Claim <$> claimParser) <|> try (uncurry Define <$> defineParser) <|> (RawExpr <$> pieParser)
 
 parsePie :: Text -> Either PieParseError Expr
 parsePie = parse (pieParser <* eof) "<lit>"
