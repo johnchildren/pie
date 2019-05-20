@@ -7,20 +7,20 @@ module Main
   )
 where
 
+import           Control.Monad.IO.Class                   ( liftIO )
 import           Control.Monad.Trans.State.Strict         ( evalStateT )
 import           Control.Monad.Trans.Class                ( lift )
 import           Control.Monad.Trans.Except               ( runExceptT
                                                           , ExceptT(..)
                                                           )
-import           Control.Monad.IO.Class                   ( liftIO )
-import           System.Console.Repline
 import qualified Data.Text                     as Text
 import qualified Data.Text.IO                  as Text
-import           System.Exit                              ( exitSuccess )
+import           System.Console.Repline
 import           System.Console.Haskeline.MonadException  ( MonadException
                                                           , controlIO
                                                           , RunIO(..)
                                                           )
+import           System.Exit                              ( exitSuccess )
 import           Language.Pie.Interpreter                 ( Interpreter
                                                           , run
                                                           )
@@ -30,8 +30,7 @@ import qualified Language.Pie.Environment      as Env
 
 instance (MonadException m) => MonadException (ExceptT e m) where
   controlIO f = ExceptT $ controlIO $ \(RunIO run) ->
-    let run' = RunIO (fmap ExceptT . run . runExceptT)
-    in  fmap runExceptT $ f run'
+    let run' = RunIO (fmap ExceptT . run . runExceptT) in runExceptT <$> f run'
 
 type Repl a = HaskelineT Interpreter a
 
@@ -76,13 +75,10 @@ ini = liftIO
 
 main :: IO ()
 main =
-  (runExceptT $ flip evalStateT Env.empty $ evalRepl (pure "Pie> ")
-                                                     cmd
-                                                     options
-                                                     (Just ':')
-                                                     (Word completer)
-                                                     ini
-    )
-    >>= \s -> case s of
+  runExceptT
+      ( flip evalStateT (Env.empty, Env.empty)
+      $ evalRepl (pure "Pie> ") cmd options (Just ':') (Word completer) ini
+      )
+    >>= \case
           Left  err -> print err
           Right ()  -> pure ()
