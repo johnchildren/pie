@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Language.Pie.Parse
   ( parsePie
   , parsePieStatement
@@ -9,6 +7,7 @@ module Language.Pie.Parse
   )
 where
 
+import           Prelude
 import           Data.Void                                ( Void )
 import qualified Data.Text                     as Text
 import           Data.Text                                ( Text )
@@ -178,7 +177,10 @@ data Statement = Claim VarName Expr
                | RawExpr Expr
 
 statementParser :: Parser Statement
-statementParser = try (uncurry Claim <$> claimParser) <|> try (uncurry Define <$> defineParser) <|> (RawExpr <$> pieParser)
+statementParser =
+  try (uncurry Claim <$> claimParser)
+    <|> try (uncurry Define <$> defineParser)
+    <|> (RawExpr <$> pieParser)
 
 parsePie :: Text -> Either PieParseError Expr
 parsePie = parse (pieParser <* eof) "<lit>"

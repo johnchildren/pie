@@ -7,6 +7,7 @@ module Language.Pie.Judgement
   )
 where
 
+import           Prelude
 import           Language.Pie.TypeChecker                 ( TypeError(..)
                                                           , Binding
                                                           , check

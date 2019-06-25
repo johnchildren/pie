@@ -1,17 +1,28 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module Language.Pie.Interpreter
   ( run
-  , Interpreter
+  , IState
   , InterpError(..)
   )
 where
 
-import           Control.Monad.Trans.State.Strict         ( StateT )
-import qualified Control.Monad.Trans.State.Strict
-                                               as State
-import           Control.Monad.Trans.Class                ( lift )
-import           Control.Monad.Trans.Except               ( ExceptT )
-import qualified Control.Monad.Trans.Except    as Except
-import           Control.Monad.IO.Class                   ( liftIO )
+import           Prelude
+import           Control.Effect                           ( Carrier
+                                                          , Member
+                                                          )
+import           Control.Effect.Error                     ( throwError
+                                                          , catchError
+                                                          , Error
+                                                          )
+import           Control.Effect.Lift                      ( sendM
+                                                          , Lift
+                                                          )
+import           Control.Effect.State.Strict              ( get
+                                                          , put
+                                                          , State
+                                                          )
 import           Data.Text                                ( Text )
 import qualified Data.Text.IO                  as Text
 import           Language.Pie.Print                       ( printPie )
@@ -37,64 +48,72 @@ import           Language.Pie.TypeChecker                 ( synth
                                                           , ctxToEnvironment
                                                           , TypeError
                                                           )
+type IState = (Env Binding, Env Claimed)
 
 data InterpError = Parse PieParseError
                  | Eval EvalError
                  | Infer TypeError
+                 | Check TypeError
                  | NonTypeClaim
                  | NoClaim VarName
                  deriving (Show)
 
 newtype Claimed = Claimed Value
 
-type IState = (Env Binding, Env Claimed)
-type Interpreter = StateT IState (ExceptT InterpError IO)
+printError :: (Member (Lift IO) sig, Carrier sig m) => InterpError -> m ()
+printError (Parse err)   = sendM . putStrLn $ errorBundlePretty err
+printError (Eval  err)   = sendM $ print err
+printError (Infer err)   = sendM $ print err
+printError (Check err)   = sendM $ print err
+printError NonTypeClaim  = sendM $ putStrLn "Not a type"
+printError (NoClaim var) = sendM . putStrLn $ "No claim: " <> show var
 
-get :: Interpreter IState
-get = State.get
-
-put :: IState -> Interpreter ()
-put = State.put
-
-throwE :: InterpError -> Interpreter a
-throwE = lift . Except.throwE
-
-catchE :: Interpreter a -> (InterpError -> Interpreter a) -> Interpreter a
-catchE = State.liftCatch Except.catchE
-
-parse :: Text -> Interpreter Statement
+parse :: (Member (Error InterpError) sig, Carrier sig m) => Text -> m Statement
 parse input = case parsePieStatement input of
-  Left  err  -> throwE (Parse err)
+  Left  err  -> throwError (Parse err)
   Right expr -> pure expr
 
-infer :: Env.Env Binding -> CoreExpr -> Interpreter (CoreExpr, CoreExpr)
+infer
+  :: (Member (Error InterpError) sig, Carrier sig m)
+  => Env Binding
+  -> CoreExpr
+  -> m (CoreExpr, CoreExpr)
 infer ctx expr = case synth ctx expr of
-  Left  err  -> throwE (Infer err)
+  Left  err  -> throwError (Infer err)
   Right pair -> pure pair
 
-checkClaim :: Env.Env Binding -> CoreExpr -> Value -> Interpreter CoreExpr
+checkClaim
+  :: (Member (Error InterpError) sig, Carrier sig m)
+  => Env Binding
+  -> CoreExpr
+  -> Value
+  -> m CoreExpr
 checkClaim ctx expr claim = case check ctx expr claim of
-  Left  err  -> throwE (Infer err)
+  Left  err  -> throwError (Check err)
   Right pair -> pure pair
 
-eval :: Env.Env Binding -> CoreExpr -> Interpreter Value
+eval
+  :: (Member (Error InterpError) sig, Carrier sig m)
+  => Env Binding
+  -> CoreExpr
+  -> m Value
 eval ctx expr = case val (ctxToEnvironment ctx) expr of
-  Left  err -> throwE (Eval err)
+  Left  err -> throwError (Eval err)
   Right v   -> pure v
 
-printError :: InterpError -> Interpreter ()
-printError (Parse err)  = liftIO . putStrLn $ errorBundlePretty err
-printError (Eval  err)  = liftIO $ print err
-printError (Infer err)  = liftIO $ print err
-printError NonTypeClaim = liftIO . putStrLn $ "Not a type"
-printError (NoClaim var) = liftIO . putStrLn $ "No claim: " <> show var
-
-run :: Text -> Interpreter ()
-run input = catchE run' printError
+run
+  :: ( Member (Error InterpError) sig
+     , Member (State IState) sig
+     , Member (Lift IO) sig
+     , Carrier sig m
+     )
+  => Text
+  -> m ()
+run input = catchError (run' input) printError
  where
-  run' = do
+  run' input' = do
     (ctx, claims) <- get
-    stmt          <- parse input
+    stmt          <- parse input'
     case stmt of
       (Claim v e) -> do
         (tOut, eOut) <- infer ctx (toCore e)
@@ -103,15 +122,15 @@ run input = catchE run' printError
             eVal <- eval ctx eOut
             let newClaims = Env.insert v (Claimed eVal) claims
             put (ctx, newClaims)
-          _ -> throwE NonTypeClaim
+          _ -> throwError NonTypeClaim
       (Define v e) -> case Env.lookup v claims of
-        Nothing          -> throwE $ NoClaim v
+        Nothing             -> throwError $ NoClaim v
         Just (Claimed tVal) -> do
           eOut <- checkClaim ctx (toCore e) tVal
-          eVal         <- eval ctx eOut
+          eVal <- eval ctx eOut
           let newCtx =
                 Env.insert v (Definition { _type = tVal, _value = eVal }) ctx
           put (newCtx, claims)
       (RawExpr e) -> do
         (tOut, eOut) <- infer ctx (toCore e)
-        liftIO . Text.putStrLn . printPie $ fromCore (CThe tOut eOut)
+        sendM . Text.putStrLn . printPie $ fromCore (CThe tOut eOut)

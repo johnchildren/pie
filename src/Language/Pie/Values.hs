@@ -8,6 +8,9 @@ module Language.Pie.Values
   )
 where
 
+import           Prelude                                  ( Show
+                                                          , Eq
+                                                          )
 import           Language.Pie.Environment                 ( Env )
 import           Language.Pie.Symbols                     ( Symbol
                                                           , VarName

@@ -1,6 +1,7 @@
-{ mkDerivation, base, containers, hedgehog, megaparsec
-, prettyprinter, recursion-schemes, repline, stdenv, tasty
-, tasty-discover, tasty-hedgehog, tasty-hspec, text
+{ mkDerivation, base, containers, fused-effects, haskeline
+, hedgehog, megaparsec, prettyprinter, recursion-schemes, repline
+, stdenv, tasty, tasty-discover, tasty-hedgehog, tasty-hspec, text
+, transformers
 }:
 mkDerivation {
   pname = "pie";
@@ -9,11 +10,15 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    base containers megaparsec prettyprinter recursion-schemes text
+    base containers fused-effects megaparsec prettyprinter
+    recursion-schemes text transformers
   ];
-  executableHaskellDepends = [ base repline text ];
+  executableHaskellDepends = [
+    base fused-effects haskeline repline text transformers
+  ];
   testHaskellDepends = [
-    base hedgehog tasty tasty-discover tasty-hedgehog tasty-hspec text
+    base fused-effects hedgehog tasty tasty-discover tasty-hedgehog
+    tasty-hspec text transformers
   ];
   testToolDepends = [ tasty-discover ];
   description = "Pie interpreter";
