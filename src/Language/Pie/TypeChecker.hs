@@ -1,5 +1,4 @@
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -17,6 +16,7 @@ module Language.Pie.TypeChecker
 where
 
 
+import           Prelude
 import           Data.Bifunctor                           ( first )
 import           Language.Pie.Symbols                     ( VarName(..) )
 import           Language.Pie.Environment                 ( Env )

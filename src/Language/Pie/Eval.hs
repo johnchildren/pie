@@ -8,6 +8,7 @@ module Language.Pie.Eval
   )
 where
 
+import           Prelude
 import           Control.Monad                            ( join )
 import           Data.Functor.Foldable                    ( Base
                                                           , cata
@@ -91,7 +92,6 @@ doApp (VLambda c) arg = valOfClosure c arg
 doApp (VNeutral (VPi a b) ne) arg =
   (\y -> VNeutral y (NAp ne (NormThe a arg))) <$> valOfClosure b arg
 doApp v1 v2 = Left $ InvalidApp v1 v2
-
 
 doWhichNat :: Env Value -> Clos -> Value -> Value -> Either EvalError Value
 doWhichNat _ _ VZero base = Right base

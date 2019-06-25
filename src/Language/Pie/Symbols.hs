@@ -4,6 +4,11 @@ module Language.Pie.Symbols
   )
 where
 
+import           Prelude                                  ( Show
+                                                          , Eq
+                                                          , Ord
+                                                          , (.)
+                                                          )
 import           Data.Text                                ( Text )
 import qualified Data.Text                     as Text
 import           GHC.Exts                                 ( IsString(..) )

@@ -1,84 +1,57 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Main
   ( main
   )
 where
 
-import           Control.Monad.IO.Class                   ( liftIO )
-import           Control.Monad.Trans.State.Strict         ( evalStateT )
-import           Control.Monad.Trans.Class                ( lift )
-import           Control.Monad.Trans.Except               ( runExceptT
-                                                          , ExceptT(..)
+import           Prelude
+import           Control.Effect                           ( Carrier
+                                                          , Member
+                                                          )
+import           Control.Effect.Lift                      ( sendM
+                                                          , Lift
+                                                          , runM
+                                                          )
+import           Control.Effect.Error                     ( Error
+                                                          , runError
+                                                          )
+import           Control.Effect.State.Strict              ( State
+                                                          , evalState
                                                           )
 import qualified Data.Text                     as Text
 import qualified Data.Text.IO                  as Text
-import           System.Console.Repline
-import           System.Console.Haskeline.MonadException  ( MonadException
-                                                          , controlIO
-                                                          , RunIO(..)
-                                                          )
-import           System.Exit                              ( exitSuccess )
-import           Language.Pie.Interpreter                 ( Interpreter
-                                                          , run
+import           Language.Pie.Interpreter                 ( run
+                                                          , InterpError
+                                                          , IState
                                                           )
 import qualified Language.Pie.Environment      as Env
 
 
 
-instance (MonadException m) => MonadException (ExceptT e m) where
-  controlIO f = ExceptT $ controlIO $ \(RunIO run) ->
-    let run' = RunIO (fmap ExceptT . run . runExceptT) in runExceptT <$> f run'
 
-type Repl a = HaskelineT Interpreter a
-
-cmd :: String -> Repl ()
-cmd s = lift $ run (Text.pack s)
-
-completer :: Monad m => WordCompleter m
-completer n = do
-  let keywords =
-        [ "The"
-        , "Atom"
-        , "Pair"
-        , "Sigma"
-        , "cons"
-        , "car"
-        , "cdr"
-        , "->"
-        , "Pi"
-        , "lambda"
-        , "Nat"
-        , "zero"
-        , "add1"
-        , "which-Nat"
-        , "iter-Nat"
-        , "rec-Nat"
-        , "List"
-        , "nil"
-        , "::"
-        , "Universe"
-        ]
-  return $ Text.unpack <$> filter (Text.isPrefixOf (Text.pack n)) keywords
-
-options :: [(String, [String] -> Repl ())]
-options = [("quit", quit)]
-
-quit :: [String] -> Repl ()
-quit _ = liftIO exitSuccess
-
-ini :: Repl ()
-ini = liftIO
+ini :: (Member (Lift IO) sig, Carrier sig m) => m ()
+ini = sendM
   $ Text.putStrLn "Welcome to pie! Each line will be evaluated as an expr!"
 
 main :: IO ()
-main =
-  runExceptT
-      ( flip evalStateT (Env.empty, Env.empty)
-      $ evalRepl (pure "Pie> ") cmd options (Just ':') (Word completer) ini
-      )
-    >>= \case
-          Left  err -> print err
-          Right ()  -> pure ()
+main = do
+  res <- runM $ runError $ evalState @IState (Env.empty, Env.empty)
+                                             (ini >> loop)
+  case res of
+    Left err -> Text.putStrLn $ "uncaught exception: " <> Text.pack
+      (show @InterpError err)
+    Right _ -> pure ()
+ where
+  loop
+    :: ( Member (Error InterpError) sig
+       , Member (State IState) sig
+       , Member (Lift IO) sig
+       , Carrier sig m
+       )
+    => m ()
+  loop = do
+    line <- sendM Text.getLine
+    run line
+    loop

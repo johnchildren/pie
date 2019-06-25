@@ -1,11 +1,10 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Test
   ( spec_eval
   , spec_judgement
   )
 where
 
+import           Prelude
 import           Data.Text                                ( Text )
 import           Test.Tasty.Hspec
 import           Language.Pie.Symbols                     ( Symbol(..)

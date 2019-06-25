@@ -1,10 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Language.Pie.Print
   ( printPie
   )
 where
 
+import           Prelude                                  ( (.) )
 import           Data.Text.Prettyprint.Doc.Render.Text    ( renderStrict )
 import           Data.Text                                ( Text )
 import           Data.Text.Prettyprint.Doc                ( (<>)

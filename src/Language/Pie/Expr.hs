@@ -3,7 +3,6 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Language.Pie.Expr
   ( Expr(..)
@@ -16,6 +15,15 @@ module Language.Pie.Expr
   )
 where
 
+import           Prelude                                  ( Show
+                                                          , Eq
+                                                          , Integer
+                                                          , ($)
+                                                          , (>)
+                                                          , (+)
+                                                          , (-)
+                                                          , error
+                                                          )
 import           Language.Pie.Symbols                     ( Symbol(..)
                                                           , VarName(..)
                                                           )

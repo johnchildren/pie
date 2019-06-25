@@ -3,6 +3,7 @@ module ParsePrintTest
   )
 where
 
+import           Prelude
 import           Hedgehog                          hiding ( Var )
 import qualified Hedgehog.Gen                  as Gen
 import qualified Hedgehog.Range                as Range
