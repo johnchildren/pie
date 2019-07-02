@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Language.Pie.Interpreter
   ( run
@@ -8,7 +9,9 @@ module Language.Pie.Interpreter
   )
 where
 
-import           Prelude
+import           Prelude                           hiding ( putStrLn
+                                                          , print
+                                                          )
 import           Control.Effect                           ( Carrier
                                                           , Member
                                                           )
@@ -16,15 +19,16 @@ import           Control.Effect.Error                     ( throwError
                                                           , catchError
                                                           , Error
                                                           )
-import           Control.Effect.Lift                      ( sendM
-                                                          , Lift
-                                                          )
 import           Control.Effect.State.Strict              ( get
                                                           , put
                                                           , State
                                                           )
+import           Control.Effect.Lift                      ( sendM
+                                                          , Lift
+                                                          )
 import           Data.Text                                ( Text )
 import qualified Data.Text.IO                  as Text
+import qualified Data.Text                     as Text
 import           Language.Pie.Print                       ( printPie )
 import           Language.Pie.Eval                        ( val
                                                           , EvalError
@@ -48,6 +52,8 @@ import           Language.Pie.TypeChecker                 ( synth
                                                           , ctxToEnvironment
                                                           , TypeError
                                                           )
+
+
 type IState = (Env Binding, Env Claimed)
 
 data InterpError = Parse PieParseError
@@ -61,12 +67,14 @@ data InterpError = Parse PieParseError
 newtype Claimed = Claimed Value
 
 printError :: (Member (Lift IO) sig, Carrier sig m) => InterpError -> m ()
-printError (Parse err)   = sendM . putStrLn $ errorBundlePretty err
-printError (Eval  err)   = sendM $ print err
-printError (Infer err)   = sendM $ print err
-printError (Check err)   = sendM $ print err
-printError NonTypeClaim  = sendM $ putStrLn "Not a type"
-printError (NoClaim var) = sendM . putStrLn $ "No claim: " <> show var
+printError (Parse err) =
+  sendM . Text.putStrLn . Text.pack $ errorBundlePretty err
+printError (Eval  err)  = sendM . Text.putStrLn . Text.pack . show $ err
+printError (Infer err)  = sendM . Text.putStrLn . Text.pack . show $ err
+printError (Check err)  = sendM . Text.putStrLn . Text.pack . show $ err
+printError NonTypeClaim = sendM $ Text.putStrLn "Not a type"
+printError (NoClaim var) =
+  sendM . Text.putStrLn $ "No claim: " <> Text.pack (show var)
 
 parse :: (Member (Error InterpError) sig, Carrier sig m) => Text -> m Statement
 parse input = case parsePieStatement input of

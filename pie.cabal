@@ -65,18 +65,18 @@ executable pie-repl
                      , pie
 
 
-test-suite pie-test
+test-suite test
   import:              haskell, dependencies, warning-flags
   type:                exitcode-stdio-1.0
   hs-source-dirs:      tests
-  main-is:             Driver.hs
-  build-depends:       hedgehog               >= 0.6  && < 0.7
-                     , tasty                  >= 1.2  && < 1.3
-                     , tasty-hedgehog         >= 0.2  && < 0.3
+  main-is:             Test.hs
+  build-depends:       hedgehog               >= 1.0  && < 1.1
+                     , tasty                  >= 1.1  && < 1.3
+                     , tasty-hedgehog         >= 1.0  && < 1.1
                      , tasty-hspec            >= 1.1  && < 1.2
-                     , tasty-discover         >= 4.2  && < 5.0
                      , pie
-  other-modules:       CommandmentsTest
+  other-modules:       JudgementsTest
+                       CommandmentsTest
                        LawsTest
-                       Test
                        ParsePrintTest
+                       EvalTest
