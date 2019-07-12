@@ -7,28 +7,21 @@ module Main
 where
 
 import           Prelude                           hiding ( putStrLn )
-import           Control.Effect                           ( Carrier
-                                                          , Member
-                                                          )
-import           Control.Effect.Lift                      ( Lift
-                                                          , LiftC
+import           Control.Effect.Lift                      ( LiftC
                                                           , sendM
                                                           , runM
                                                           )
-import           Control.Effect.Error                     ( Error
-                                                          , ErrorC
+import           Control.Effect.Error                     ( ErrorC
                                                           , runError
+                                                          , catchError
                                                           )
-import           Control.Effect.State.Strict              ( State
-                                                          , StateC
+import           Control.Effect.State.Strict              ( StateC
                                                           , evalState
-                                                          )
-import           Control.Monad.IO.Class                   ( MonadIO
-                                                          , liftIO
                                                           )
 import qualified Data.Text                     as Text
 import qualified Data.Text.IO                  as Text
-import           Language.Pie.Interpreter                 ( run
+import           Language.Pie.Interpreter                 ( interp
+                                                          , printError
                                                           , InterpError
                                                           , IState
                                                           )
@@ -48,5 +41,5 @@ main = do
   loop :: StateC IState (ErrorC InterpError (LiftC IO)) ()
   loop = do
     line <- sendM Text.getLine
-    run line
+    catchError (interp line >>= sendM . Text.putStrLn) printError
     loop

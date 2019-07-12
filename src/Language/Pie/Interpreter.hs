@@ -3,7 +3,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Language.Pie.Interpreter
-  ( run
+  ( interp
+  , printError
   , IState
   , InterpError(..)
   )
@@ -16,7 +17,6 @@ import           Control.Effect                           ( Carrier
                                                           , Member
                                                           )
 import           Control.Effect.Error                     ( throwError
-                                                          , catchError
                                                           , Error
                                                           )
 import           Control.Effect.State.Strict              ( get
@@ -62,7 +62,7 @@ data InterpError = Parse PieParseError
                  | Check TypeError
                  | NonTypeClaim
                  | NoClaim VarName
-                 deriving (Show)
+                 deriving (Show, Eq)
 
 newtype Claimed = Claimed Value
 
@@ -109,36 +109,32 @@ eval ctx expr = case val (ctxToEnvironment ctx) expr of
   Left  err -> throwError (Eval err)
   Right v   -> pure v
 
-run
-  :: ( Member (Error InterpError) sig
-     , Member (State IState) sig
-     , Member (Lift IO) sig
-     , Carrier sig m
-     )
+interp
+  :: (Member (Error InterpError) sig, Member (State IState) sig, Carrier sig m)
   => Text
-  -> m ()
-run input = catchError (run' input) printError
- where
-  run' input' = do
-    (ctx, claims) <- get
-    stmt          <- parse input'
-    case stmt of
-      (Claim v e) -> do
-        (tOut, eOut) <- infer ctx (toCore e)
-        case tOut of
-          CUniverse -> do
-            eVal <- eval ctx eOut
-            let newClaims = Env.insert v (Claimed eVal) claims
-            put (ctx, newClaims)
-          _ -> throwError NonTypeClaim
-      (Define v e) -> case Env.lookup v claims of
-        Nothing             -> throwError $ NoClaim v
-        Just (Claimed tVal) -> do
-          eOut <- checkClaim ctx (toCore e) tVal
+  -> m Text
+interp input = do
+  (ctx, claims) <- get
+  stmt          <- parse input
+  case stmt of
+    (Claim v e) -> do
+      (tOut, eOut) <- infer ctx (toCore e)
+      case tOut of
+        CUniverse -> do
           eVal <- eval ctx eOut
-          let newCtx =
-                Env.insert v (Definition { _type = tVal, _value = eVal }) ctx
-          put (newCtx, claims)
-      (RawExpr e) -> do
-        (tOut, eOut) <- infer ctx (toCore e)
-        sendM . Text.putStrLn . printPie $ fromCore (CThe tOut eOut)
+          let newClaims = Env.insert v (Claimed eVal) claims
+          put (ctx, newClaims)
+          pure "claimed"
+        _ -> throwError NonTypeClaim
+    (Define v e) -> case Env.lookup v claims of
+      Nothing             -> throwError $ NoClaim v
+      Just (Claimed tVal) -> do
+        eOut <- checkClaim ctx (toCore e) tVal
+        eVal <- eval ctx eOut
+        let newCtx =
+              Env.insert v (Definition { _type = tVal, _value = eVal }) ctx
+        put (newCtx, claims)
+        pure "defined"
+    (RawExpr e) -> do
+      (tOut, eOut) <- infer ctx (toCore e)
+      pure . printPie $ fromCore (CThe tOut eOut)

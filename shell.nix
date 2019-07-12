@@ -6,7 +6,5 @@ stdenv.mkDerivation {
     pkgs.niv
     pkgs.ghc
     pkgs.cabal-install
-
-    haskellPackages.tasty-discover
   ];
 }
