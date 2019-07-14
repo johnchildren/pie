@@ -73,7 +73,7 @@ test-suite test
   build-depends:       hedgehog               >= 1.0  && < 2.0
                      , tasty                  >= 1.2  && < 2.0
                      , tasty-hedgehog         >= 1.0  && < 2.0
-                     , tasty-hspec            >= 1.1  && < 2.0
+                     , tasty-hunit            >= 0.10  && < 0.11
                      , pie
   other-modules:       JudgementsTest
                        CommandmentsTest
