@@ -4,6 +4,7 @@ module Language.Pie.Print
 where
 
 import           Prelude                                  ( (.) )
+import Data.Eq ((==))
 import           Data.Text.Prettyprint.Doc.Render.Text    ( renderStrict )
 import           Data.Text                                ( Text )
 import           Data.Text.Prettyprint.Doc                ( (<>)
@@ -24,8 +25,8 @@ import           Language.Pie.Expr                        ( Expr(..)
                                                           )
 
 printVarName :: VarName -> Doc a
-printVarName (VarName v) = pretty v
-printVarName (Dimmed  v) = "_" <> pretty v <> "_"
+printVarName (VarName v n) = pretty v <> if n == 0 then "" else pretty n
+printVarName (Dimmed  v _) = "_" <> pretty v <> "_"
 
 printUnaryExpr :: Doc a -> Doc a -> Doc a
 printUnaryExpr tok e1 = "(" <> tok <+> e1 <> ")"

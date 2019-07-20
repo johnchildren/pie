@@ -1,6 +1,8 @@
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ConstraintKinds #-}
 
 module Language.Pie.TypeChecker
   ( alphaEquiv
@@ -17,7 +19,19 @@ where
 
 
 import           Prelude
-import           Data.Bifunctor                           ( first )
+import           Control.Effect                           ( Carrier
+                                                          , Member
+                                                          )
+import           Control.Effect.Fresh                     ( Fresh
+                                                          , fresh
+                                                          )
+import           Control.Effect.Error                     ( Error
+                                                          , throwError
+                                                          )
+import           Control.Effect.Reader                    ( Reader
+                                                          , ask
+                                                          , local
+                                                          )
 import           Language.Pie.Symbols                     ( VarName(..) )
 import           Language.Pie.Environment                 ( Env )
 import qualified Language.Pie.Environment      as Env
@@ -44,94 +58,124 @@ data TypeError = UnknownTypeError VarName
                | ReadBackError Value Value
                deriving (Show, Eq)
 
+val
+  :: ( Member (Error TypeError) sig
+     , Member (Reader (Env Binding)) sig
+     , Carrier sig m
+     )
+  => CoreExpr
+  -> m Value
+val e = do
+  gamma <- ask
+  let rho = ctxToEnvironment gamma
+  case Eval.val rho e of
+    Left  err -> throwError (NbEError err)
+    Right v   -> pure v
 
-val :: Env Value -> CoreExpr -> Either TypeError Value
-val rho e = first NbEError $ Eval.val rho e
+valOfClosure
+  :: (Member (Error TypeError) sig, Carrier sig m)
+  => Closure
+  -> Value
+  -> m Value
+valOfClosure cl v = case Eval.valOfClosure cl v of
+  Left  err -> throwError (NbEError err)
+  Right res -> pure res
 
-valOfClosure :: Closure -> Value -> Either TypeError Value
-valOfClosure cl v = first NbEError $ Eval.valOfClosure cl v
+doCar :: (Member (Error TypeError) sig, Carrier sig m) => Value -> m Value
+doCar v = case Eval.doCar v of
+  Left  err -> throwError (NbEError err)
+  Right res -> pure res
 
-doCar :: Value -> Either TypeError Value
-doCar v = first NbEError $ Eval.doCar v
+doCdr :: (Member (Error TypeError) sig, Carrier sig m) => Value -> m Value
+doCdr v = case Eval.doCdr v of
+  Left  err -> throwError (NbEError err)
+  Right res -> pure res
 
-doCdr :: Value -> Either TypeError Value
-doCdr v = first NbEError $ Eval.doCdr v
+doApp
+  :: (Member (Error TypeError) sig, Carrier sig m) => Value -> Value -> m Value
+doApp f v = case Eval.doApp f v of
+  Left  err -> throwError (NbEError err)
+  Right res -> pure res
 
-doApp :: Value -> Value -> Either TypeError Value
-doApp f v = first NbEError $ Eval.doApp f v
+
+type TypeCheckEffects sig
+  = ( Member (Error TypeError) sig
+    , Member Fresh sig
+    , Member (Reader (Env Binding)) sig
+    )
 
 -- read back a normalised value
-readBackNorm :: Env Binding -> Normal -> Either TypeError CoreExpr
-readBackNorm gamma (NormThe typ expr) = readBackNorm' typ expr
+readBackNorm :: (TypeCheckEffects sig, Carrier sig m) => Normal -> m CoreExpr
+readBackNorm (NormThe typ expr) = readBackNorm' typ expr
  where
-  readBackNorm' :: Value -> Value -> Either TypeError CoreExpr
-  readBackNorm' VNat      VZero     = Right CZero
+  readBackNorm'
+    :: (TypeCheckEffects sig, Carrier sig m) => Value -> Value -> m CoreExpr
+  readBackNorm' VNat      VZero     = pure CZero
   readBackNorm' VNat      (VAdd1 n) = CAdd1 <$> readBackNorm' VNat n
   readBackNorm' (VPi a b) f         = do
-    let x    = closName b
-        y    = freshen gamma x
-        yVal = VNeutral a (NVar y)
+    let x = closName b
+    y <- freshen x
+    let yVal = VNeutral a (NVar y)
     fVal  <- doApp f yVal
     fTy   <- valOfClosure b yVal
-    fExpr <- readBackNorm (extendCtx gamma y a) (NormThe fTy fVal)
-    Right $ CLambda y (Clos fExpr)
+    fExpr <- local (\g -> extendCtx g y a) $ readBackNorm (NormThe fTy fVal)
+    pure $ CLambda y (Clos fExpr)
   readBackNorm' (VSigma a d) p = do
     theCar <- doCar p
     theCdr <- doCdr p
     dTy    <- valOfClosure d theCdr
     aExpr  <- readBackNorm' a theCar
     dExpr  <- readBackNorm' dTy theCdr
-    Right $ CCons aExpr dExpr
-  readBackNorm' VAtom     (VQuote x) = Right $ CQuote x
-  readBackNorm' VUniverse VNat       = Right CNat
-  readBackNorm' VUniverse VAtom      = Right CAtom
+    pure $ CCons aExpr dExpr
+  readBackNorm' VAtom     (VQuote x) = pure $ CQuote x
+  readBackNorm' VUniverse VNat       = pure CNat
+  readBackNorm' VUniverse VAtom      = pure CAtom
   readBackNorm' VUniverse (VList xs) =
-    CList <$> readBackNorm gamma (NormThe VUniverse xs)
-  readBackNorm' VUniverse (VSigma a b)    = readBackSigmaPi CSigma gamma a b
-  readBackNorm' VUniverse (VPi    a b)    = readBackSigmaPi CPi gamma a b
-  readBackNorm' VUniverse VUniverse       = Right CUniverse -- TODO: Not true
-  readBackNorm' _         (VNeutral _ ne) = readBackNeutral gamma ne
-  readBackNorm' t         v               = Left $ ReadBackError t v
+    CList <$> readBackNorm (NormThe VUniverse xs)
+  readBackNorm' VUniverse (VSigma a b)    = readBackSigmaPi CSigma a b
+  readBackNorm' VUniverse (VPi    a b)    = readBackSigmaPi CPi a b
+  readBackNorm' VUniverse VUniverse       = pure CUniverse -- TODO: Not true
+  readBackNorm' _         (VNeutral _ ne) = readBackNeutral ne
+  readBackNorm' t         v               = throwError $ ReadBackError t v
 
 readBackSigmaPi
-  :: (VarName -> CoreExpr -> Clos -> CoreExpr)
-  -> Env Binding
+  :: (TypeCheckEffects sig, Carrier sig m)
+  => (VarName -> CoreExpr -> Clos -> CoreExpr)
   -> Value
   -> Closure
-  -> Either TypeError CoreExpr
-readBackSigmaPi constructor gamma a b = do
+  -> m CoreExpr
+readBackSigmaPi constructor a b = do
   let x = closName b
-      y = freshen gamma x
+  y       <- freshen x
   closVal <- valOfClosure b (VNeutral a (NVar y))
-  aExpr   <- readBackNorm gamma (NormThe VUniverse a)
-  bExpr   <- readBackNorm (extendCtx gamma y a) (NormThe VUniverse closVal)
-  Right $ constructor y aExpr (Clos bExpr)
+  aExpr   <- readBackNorm (NormThe VUniverse a)
+  bExpr   <- local (\g -> extendCtx g y a)
+    $ readBackNorm (NormThe VUniverse closVal)
+  pure $ constructor y aExpr (Clos bExpr)
 
 
-readBackNeutral :: Env Binding -> Neutral -> Either TypeError CoreExpr
-readBackNeutral gamma = readBackNeutral'
- where
-  readBackNeutral' :: Neutral -> Either TypeError CoreExpr
-  readBackNeutral' (NVar x) = Right $ CVar x
-  readBackNeutral' (NAp ne rand) =
-    CApp <$> readBackNeutral gamma ne <*> readBackNorm gamma rand
-  readBackNeutral' (NCar ne) = CCar <$> readBackNeutral gamma ne
-  readBackNeutral' (NCdr ne) = CCdr <$> readBackNeutral gamma ne
-  readBackNeutral' (NWhichNat ne base step) =
-    CWhichNat
-      <$> readBackNeutral gamma ne
-      <*> readBackNorm gamma base
-      <*> (Clos <$> readBackNorm gamma step)
-  readBackNeutral' (NIterNat ne base step) =
-    CIterNat
-      <$> readBackNeutral gamma ne
-      <*> readBackNorm gamma base
-      <*> (Clos <$> readBackNorm gamma step)
-  readBackNeutral' (NRecNat ne base step) =
-    CRecNat
-      <$> readBackNeutral gamma ne
-      <*> readBackNorm gamma base
-      <*> (Clos <$> readBackNorm gamma step)
+readBackNeutral
+  :: (TypeCheckEffects sig, Carrier sig m) => Neutral -> m CoreExpr
+readBackNeutral (NVar x) = pure $ CVar x
+readBackNeutral (NAp ne rand) =
+  CApp <$> readBackNeutral ne <*> readBackNorm rand
+readBackNeutral (NCar ne) = CCar <$> readBackNeutral ne
+readBackNeutral (NCdr ne) = CCdr <$> readBackNeutral ne
+readBackNeutral (NWhichNat ne base step) =
+  CWhichNat
+    <$> readBackNeutral ne
+    <*> readBackNorm base
+    <*> (Clos <$> readBackNorm step)
+readBackNeutral (NIterNat ne base step) =
+  CIterNat
+    <$> readBackNeutral ne
+    <*> readBackNorm base
+    <*> (Clos <$> readBackNorm step)
+readBackNeutral (NRecNat ne base step) =
+  CRecNat
+    <$> readBackNeutral ne
+    <*> readBackNorm base
+    <*> (Clos <$> readBackNorm step)
 
 -- CoreExpressions that have no arguments to their constructor
 -- TODO: I'm sure there's a better word for this?
@@ -149,21 +193,13 @@ type Bindings = Env VarName
 data Binding = Definition { _type :: Value, _value :: Value }
              | FreeVar { _type :: Value }
 
-freshen :: Env Binding -> VarName -> VarName
-freshen ctx (VarName sym) =
-  let newV = (VarName $ sym <> "*")
-  in  case Env.lookup newV ctx of
-        Nothing -> newV
-        Just _  -> freshen ctx newV
-freshen ctx (Dimmed sym) =
-  let newV = (Dimmed $ sym <> "*")
-  in  case Env.lookup newV ctx of
-        Nothing -> newV
-        Just _  -> freshen ctx newV
+freshen :: (Member Fresh sig, Carrier sig m) => VarName -> m VarName
+freshen (VarName sym _) = VarName sym <$> fresh
+freshen (Dimmed  sym _) = Dimmed sym <$> fresh
 
 -- generate a symbol not in either environment
 freshen2 :: Bindings -> Bindings -> VarName
-freshen2 _ _ = VarName "foo"
+freshen2 _ _ = VarName "foo" 0
 
 alphaEquiv :: CoreExpr -> CoreExpr -> Bool
 alphaEquiv e1 e2 = alphaEquiv' e1 e2 Env.empty Env.empty
@@ -178,134 +214,137 @@ alphaEquiv' (CVar   _ ) (CVar   _ ) _    _    = False
 alphaEquiv' (CQuote a1) (CQuote a2) _    _    = a1 == a2
 alphaEquiv' (CAdd1  n1) (CAdd1  n2) env1 env2 = alphaEquiv' n1 n2 env1 env2
 alphaEquiv' (CLambda x (Clos b1)) (CLambda y (Clos b2)) xs1 xs2 =
-  let fresh = freshen2 xs1 xs2
-  in  let bigger1 = Env.insert x fresh xs1
-          bigger2 = Env.insert y fresh xs2
+  let freshened = freshen2 xs1 xs2
+  in  let bigger1 = Env.insert x freshened xs1
+          bigger2 = Env.insert y freshened xs2
       in  alphaEquiv' b1 b2 bigger1 bigger2
 alphaEquiv' (CPi x a1 (Clos b1)) (CPi y a2 (Clos b2)) xs1 xs2 =
   alphaEquiv' a1 a2 xs1 xs2
-    && let fresh = freshen2 xs1 xs2
-       in  let bigger1 = Env.insert x fresh xs1
-               bigger2 = Env.insert y fresh xs2
+    && let freshened = freshen2 xs1 xs2
+       in  let bigger1 = Env.insert x freshened xs1
+               bigger2 = Env.insert y freshened xs2
            in  alphaEquiv' b1 b2 bigger1 bigger2
 alphaEquiv' (CList x) (CList y) env1 env2 = alphaEquiv' x y env1 env2
 alphaEquiv' (CListExp x xs) (CListExp y ys) env1 env2 =
   alphaEquiv' x y env1 env2 && alphaEquiv' xs ys env1 env2
 alphaEquiv' _ _ _ _ = False
 
-lookupType :: VarName -> Env Binding -> Either TypeError Value
-lookupType name ctx = case Env.lookup name ctx of
-  Nothing               -> Left $ UnknownVariableError name
-  Just (FreeVar t     ) -> Right t
-  Just (Definition t _) -> Right t
+lookupType
+  :: ( Member (Error TypeError) sig
+     , Member (Reader (Env Binding)) sig
+     , Carrier sig m
+     )
+  => VarName
+  -> m Value
+lookupType name = do
+  gamma <- ask
+  case Env.lookup name gamma of
+    Nothing               -> throwError $ UnknownVariableError name
+    Just (FreeVar t     ) -> pure t
+    Just (Definition t _) -> pure t
 
 
 -- Construct a tuple of type and expression
-synth :: Env Binding -> CoreExpr -> Either TypeError (CoreExpr, CoreExpr)
-synth gamma = synth'
- where
-  synth' :: CoreExpr -> Either TypeError (CoreExpr, CoreExpr)
-  synth' (CThe typ expr) = do
-    tOut <- check gamma typ VUniverse
-    tVal <- val (ctxToEnvironment gamma) tOut
-    eOut <- check gamma expr tVal
-    Right (tOut, eOut)
-  synth' CUniverse             = Right (CUniverse, CUniverse)
-  synth' (CSigma x a (Clos d)) = do
-    aOut <- check gamma a VUniverse
-    aVal <- val (ctxToEnvironment gamma) aOut
-    dOut <- check (extendCtx gamma x aVal) d VUniverse
-    Right (CUniverse, CSigma x aOut (Clos dOut))
-  synth' (CCar pr) = do
-    (prTy, prOut) <- synth gamma pr
-    prTyVal       <- val (ctxToEnvironment gamma) prTy
-    case prTyVal of
-      (VSigma a _) ->
-        (, CCar prOut) <$> readBackNorm gamma (NormThe VUniverse a)
-      other -> do
-        otherVal <- readBackNorm gamma (NormThe VUniverse other)
-        Left $ NonPairError otherVal
-  synth' (CCdr pr) = do
-    (prTy, prOut) <- synth gamma pr
-    prTyVal       <- val (ctxToEnvironment gamma) prTy
-    case prTyVal of
-      (VSigma _ d) -> do
-        prOutVal <- val (ctxToEnvironment gamma) prOut
-        theCar   <- doCar prOutVal
-        closVal  <- valOfClosure d theCar
-        ty       <- readBackNorm gamma (NormThe VUniverse closVal)
-        Right (ty, CCar prOut)
-      other -> do
-        otherVal <- readBackNorm gamma (NormThe VUniverse other)
-        Left $ NonPairError otherVal
-  synth' CNat               = Right (CUniverse, CNat)
-  synth' (CPi x a (Clos b)) = do
-    aOut <- check gamma a VUniverse
-    aVal <- val (ctxToEnvironment gamma) aOut
-    bOut <- check (extendCtx gamma x aVal) b VUniverse
-    Right (CUniverse, CPi x aOut (Clos bOut))
-  -- Atom is a Universe
-  synth' CAtom             = Right (CUniverse, CAtom)
-  synth' (CApp rator rand) = do
-    (ratorTy, ratorOut) <- synth gamma rator
-    ratorTyVal          <- val (ctxToEnvironment gamma) ratorTy
-    case ratorTyVal of
-      (VPi a b) -> do
-        randOut     <- check gamma rand a
-        randOutVal  <- val (ctxToEnvironment gamma) randOut
-        randOutClos <- valOfClosure b randOutVal
-        tyOut       <- readBackNorm gamma (NormThe VUniverse randOutClos)
-        Right (tyOut, CApp ratorOut randOut)
-      other -> do
-        otherVal <- readBackNorm gamma (NormThe VUniverse other)
-        Left $ UnexpectedPiTypeError otherVal
-  synth' q@(CQuote _) = Right (CAtom, q)
-  -- Zero is a Nat
-  synth' CZero        = Right (CNat, CZero)
-  -- if n in a@(Add1 n) is a Nat, a is a Nat
-  synth' a@(CAdd1 n)  = do
-    _ <- check gamma n VNat
-    Right (CNat, a)
-  -- ListI-2
-  synth' (CListExp e es) = do
-    (eTy, eOut) <- synth gamma e
-    eTyVal      <- val (ctxToEnvironment gamma) eTy
-    esOut       <- check gamma es (VList eTyVal)
-    Right (CList eTy, CListExp eOut esOut)
-  synth' (CVar x) = do
-    tVal <- lookupType x gamma
-    t    <- readBackNorm gamma (NormThe VUniverse tVal)
-    Right (t, CVar x)
-  synth' other = Left $ TypeSynthesisError other
+synth
+  :: (TypeCheckEffects sig, Carrier sig m) => CoreExpr -> m (CoreExpr, CoreExpr)
+synth (CThe typ expr) = do
+  tOut <- check typ VUniverse
+  tVal <- val tOut
+  eOut <- check expr tVal
+  pure (tOut, eOut)
+synth CUniverse             = pure (CUniverse, CUniverse)
+synth (CSigma x a (Clos d)) = do
+  aOut <- check a VUniverse
+  aVal <- val aOut
+  dOut <- local (\g -> extendCtx g x aVal) $ check d VUniverse
+  pure (CUniverse, CSigma x aOut (Clos dOut))
+synth (CCar pr) = do
+  (prTy, prOut) <- synth pr
+  prTyVal       <- val prTy
+  case prTyVal of
+    (VSigma a _) -> (, CCar prOut) <$> readBackNorm (NormThe VUniverse a)
+    other        -> do
+      otherVal <- readBackNorm (NormThe VUniverse other)
+      throwError $ NonPairError otherVal
+synth (CCdr pr) = do
+  (prTy, prOut) <- synth pr
+  prTyVal       <- val prTy
+  case prTyVal of
+    (VSigma _ d) -> do
+      prOutVal <- val prOut
+      theCar   <- doCar prOutVal
+      closVal  <- valOfClosure d theCar
+      ty       <- readBackNorm (NormThe VUniverse closVal)
+      pure (ty, CCar prOut)
+    other -> do
+      otherVal <- readBackNorm (NormThe VUniverse other)
+      throwError $ NonPairError otherVal
+synth CNat               = pure (CUniverse, CNat)
+synth (CPi x a (Clos b)) = do
+  aOut <- check a VUniverse
+  aVal <- val aOut
+  bOut <- local (\g -> extendCtx g x aVal) $ check b VUniverse
+  pure (CUniverse, CPi x aOut (Clos bOut))
+-- Atom is a Universe
+synth CAtom             = pure (CUniverse, CAtom)
+synth (CApp rator rand) = do
+  (ratorTy, ratorOut) <- synth rator
+  ratorTyVal          <- val ratorTy
+  case ratorTyVal of
+    (VPi a b) -> do
+      randOut     <- check rand a
+      randOutVal  <- val randOut
+      randOutClos <- valOfClosure b randOutVal
+      tyOut       <- readBackNorm (NormThe VUniverse randOutClos)
+      pure (tyOut, CApp ratorOut randOut)
+    other -> do
+      otherVal <- readBackNorm (NormThe VUniverse other)
+      throwError $ UnexpectedPiTypeError otherVal
+synth q@(CQuote _) = pure (CAtom, q)
+-- Zero is a Nat
+synth CZero        = pure (CNat, CZero)
+-- if n in a@(Add1 n) is a Nat, a is a Nat
+synth a@(CAdd1 n)  = do
+  _ <- check n VNat
+  pure (CNat, a)
+-- ListI-2
+synth (CListExp e es) = do
+  (eTy, eOut) <- synth e
+  eTyVal      <- val eTy
+  esOut       <- check es (VList eTyVal)
+  pure (CList eTy, CListExp eOut esOut)
+synth (CVar x) = do
+  tVal <- lookupType x
+  t    <- readBackNorm (NormThe VUniverse tVal)
+  pure (t, CVar x)
+synth other = throwError $ TypeSynthesisError other
 
 
-check :: Env Binding -> CoreExpr -> Value -> Either TypeError CoreExpr
-check gamma = check'
- where
-  check' :: CoreExpr -> Value -> Either TypeError CoreExpr
-  check' (CCons a1 d1) (VSigma a2 d2) = do
-    aOut  <- check gamma a1 a2
-    aVal  <- val (ctxToEnvironment gamma) aOut
-    aClos <- valOfClosure d2 aVal
-    dOut  <- check gamma d1 aClos
-    Right $ CCons aOut dOut
-  check' CZero     VNat = Right CZero
-  check' (CAdd1 n) VNat = do
-    nOut <- check gamma n VNat
-    Right $ CAdd1 nOut
-  check' (CLambda x (Clos b)) (VPi a c) = do
-    let xVal = VNeutral a (NVar x)
-    cClos <- valOfClosure c xVal
-    bOut  <- check (extendCtx gamma x a) b cClos
-    Right $ CLambda x (Clos bOut)
-  check' (CQuote s) VAtom     = Right $ CQuote s
-  -- ListI-1
-  check' CNil       (VList _) = Right CNil
-  check' e          t         = do
-    (tOut, eOut) <- synth gamma e
-    tVal         <- val (ctxToEnvironment gamma) tOut
-    _            <- convert gamma VUniverse t tVal
-    Right eOut
+check
+  :: (TypeCheckEffects sig, Carrier sig m) => CoreExpr -> Value -> m CoreExpr
+check (CCons a1 d1) (VSigma a2 d2) = do
+  aOut  <- check a1 a2
+  aVal  <- val aOut
+  aClos <- valOfClosure d2 aVal
+  dOut  <- check d1 aClos
+  pure $ CCons aOut dOut
+check CZero     VNat = pure CZero
+check (CAdd1 n) VNat = do
+  nOut <- check n VNat
+  pure $ CAdd1 nOut
+check (CLambda x (Clos b)) (VPi a c) = do
+  let xVal = VNeutral a (NVar x)
+  cClos <- valOfClosure c xVal
+  bOut  <- local (\g -> extendCtx g x a) $ check b cClos
+  pure $ CLambda x (Clos bOut)
+check (CQuote s) VAtom     = pure $ CQuote s
+-- ListI-1
+check CNil       (VList _) = pure CNil
+check e          t         = do
+  (tOut, eOut) <- synth e
+  tVal         <- val tOut
+  _            <- convert VUniverse t tVal
+  pure eOut
 
 ctxToEnvironment :: Env Binding -> Env Value
 ctxToEnvironment = Env.mapWithVarName aux
@@ -318,13 +357,15 @@ extendCtx :: Env Binding -> VarName -> Value -> Env Binding
 extendCtx ctx name v = Env.insert name (FreeVar v) ctx
 
 convert
-  :: Env Binding
+  :: (TypeCheckEffects sig, Carrier sig m)
+  => Value
   -> Value
   -> Value
-  -> Value
-  -> Either TypeError (CoreExpr, CoreExpr)
-convert gamma tv v1 v2 = do
-  e1 <- readBackNorm gamma (NormThe tv v1)
-  e2 <- readBackNorm gamma (NormThe tv v2)
-  t  <- readBackNorm gamma (NormThe VUniverse tv)
-  if alphaEquiv e1 e2 then Right (e1, e2) else Left $ UnificationError e1 t e2
+  -> m (CoreExpr, CoreExpr)
+convert tv v1 v2 = do
+  e1 <- readBackNorm (NormThe tv v1)
+  e2 <- readBackNorm (NormThe tv v2)
+  t  <- readBackNorm (NormThe VUniverse tv)
+  if alphaEquiv e1 e2
+    then pure (e1, e2)
+    else throwError $ UnificationError e1 t e2

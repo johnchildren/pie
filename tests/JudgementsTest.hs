@@ -116,7 +116,7 @@ mkAtom :: Text -> Expr
 mkAtom = Quote . Symbol
 
 mkVar :: Text -> Expr
-mkVar = Var . VarName
+mkVar = Var . flip VarName 0
 
 mkLambda :: Text -> Expr -> Expr
-mkLambda x = Lambda (VarName x)
+mkLambda x = Lambda (VarName x 0)

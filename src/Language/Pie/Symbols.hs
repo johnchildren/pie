@@ -9,6 +9,7 @@ import           Prelude                                  ( Show
                                                           , Ord
                                                           , (.)
                                                           )
+import           Data.Int                                 ( Int )
 import           Data.Text                                ( Text )
 import qualified Data.Text                     as Text
 import           GHC.Exts                                 ( IsString(..) )
@@ -19,6 +20,6 @@ newtype Symbol = Symbol Text
 instance IsString Symbol where
   fromString = Symbol . Text.pack
 
-data VarName = VarName Text
-             | Dimmed Text
+data VarName = VarName Text Int
+             | Dimmed Text Int
     deriving (Show, Eq, Ord)

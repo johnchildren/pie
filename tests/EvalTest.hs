@@ -47,7 +47,7 @@ test_eval = testGroup
           (VSigma
             VAtom
             (CLOS Env.empty
-                  (Dimmed "x")
+                  (Dimmed "x" 0)
                   (CCdr (CCons (mkCoreAtom "oil") CAtom))
             )
           )
@@ -128,10 +128,10 @@ mkAtom :: Text -> Expr
 mkAtom = Quote . Symbol
 
 mkVar :: Text -> Expr
-mkVar = Var . VarName
+mkVar = Var . flip VarName 0
 
 mkLambda :: Text -> Expr -> Expr
-mkLambda x = Lambda (VarName x)
+mkLambda x = Lambda (VarName x 0)
 
 mkAtomVal :: Text -> Value
 mkAtomVal = VQuote . Symbol
