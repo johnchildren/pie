@@ -19,7 +19,7 @@ genVarName :: Gen VarName
 genVarName =
   Gen.choice
     $   (\x -> x <$> Gen.text (Range.constant 1 10) Gen.alpha)
-    <$> [VarName] -- TODO: support Dimmed?
+    <$> [flip VarName 0] -- TODO: support Dimmed?
 
 genSymbol :: Gen Symbol
 genSymbol = Symbol <$> Gen.text (Range.constant 1 10) Gen.alpha

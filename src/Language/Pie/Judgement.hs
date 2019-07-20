@@ -8,12 +8,15 @@ module Language.Pie.Judgement
 where
 
 import           Prelude
+import           Control.Effect                           ( run )
+import           Control.Effect.Fresh                     ( runFresh )
+import           Control.Effect.Error                     ( runError )
+import           Control.Effect.Reader                    ( runReader )
 import           Language.Pie.TypeChecker                 ( TypeError(..)
                                                           , Binding
                                                           , check
                                                           , convert
                                                           , val
-                                                          , ctxToEnvironment
                                                           )
 import           Language.Pie.Expr                        ( Expr(..)
                                                           , toCore
@@ -30,23 +33,23 @@ data Judgement = Yes
 -- | First form of judgement
 -- ______ is a ______.
 judgement1 :: Env Binding -> Expr -> Expr -> Judgement
-judgement1 ctx e1 e2 =
-  let env = ctxToEnvironment ctx
-      t   = val env (toCore e2)
-  in  case t >>= check ctx (toCore e1) of
+judgement1 gamma e1 e2 =
+  let checked = run . runError . runFresh . runReader gamma $ do
+        t <- val (toCore e2)
+        check (toCore e1) t
+  in  case checked of
         Right _   -> Yes
         Left  err -> TypeError err
 
 -- | Second form of judgement
 -- ______ is the same ______ as ______.
 judgement2 :: Env Binding -> Expr -> Expr -> Expr -> Judgement
-judgement2 ctx e1 e2 e3 =
-  let env       = ctxToEnvironment ctx
-      converted = do
-        t  <- val env (toCore e2)
-        v1 <- val env (toCore e1)
-        v2 <- val env (toCore e3)
-        convert ctx t v1 v2
+judgement2 gamma e1 e2 e3 =
+  let converted = run . runError . runFresh . runReader gamma $ do
+        t  <- val (toCore e2)
+        v1 <- val (toCore e1)
+        v2 <- val (toCore e3)
+        convert t v1 v2
   in  case converted of
         Right (c1, c2)           -> if c1 == c2 then Yes else No
         Left  UnificationError{} -> No

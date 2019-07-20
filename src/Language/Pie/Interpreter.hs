@@ -15,9 +15,15 @@ import           Prelude                           hiding ( putStrLn
                                                           )
 import           Control.Effect                           ( Carrier
                                                           , Member
+                                                          , Effect
                                                           )
 import           Control.Effect.Error                     ( throwError
+                                                          , runError
                                                           , Error
+                                                          )
+import           Control.Effect.Fresh                     ( runFresh )
+import           Control.Effect.Reader                    ( Reader
+                                                          , runReader
                                                           )
 import           Control.Effect.State.Strict              ( get
                                                           , put
@@ -82,23 +88,33 @@ parse input = case parsePieStatement input of
   Right expr -> pure expr
 
 infer
-  :: (Member (Error InterpError) sig, Carrier sig m)
-  => Env Binding
-  -> CoreExpr
+  :: ( Member (Error InterpError) sig
+     , Member (Reader (Env Binding)) sig
+     , Effect sig
+     , Carrier sig m
+     )
+  => CoreExpr
   -> m (CoreExpr, CoreExpr)
-infer ctx expr = case synth ctx expr of
-  Left  err  -> throwError (Infer err)
-  Right pair -> pure pair
+infer expr = do
+  res <- runFresh . runError $ synth expr
+  case res of
+    Left  err  -> throwError (Check err)
+    Right pair -> pure pair
 
 checkClaim
-  :: (Member (Error InterpError) sig, Carrier sig m)
-  => Env Binding
-  -> CoreExpr
+  :: ( Member (Error InterpError) sig
+     , Member (Reader (Env Binding)) sig
+     , Effect sig
+     , Carrier sig m
+     )
+  => CoreExpr
   -> Value
   -> m CoreExpr
-checkClaim ctx expr claim = case check ctx expr claim of
-  Left  err  -> throwError (Check err)
-  Right pair -> pure pair
+checkClaim expr claim = do
+  res <- runFresh . runError $ check expr claim
+  case res of
+    Left  err  -> throwError (Check err)
+    Right pair -> pure pair
 
 eval
   :: (Member (Error InterpError) sig, Carrier sig m)
@@ -110,31 +126,35 @@ eval ctx expr = case val (ctxToEnvironment ctx) expr of
   Right v   -> pure v
 
 interp
-  :: (Member (Error InterpError) sig, Member (State IState) sig, Carrier sig m)
+  :: ( Member (Error InterpError) sig
+     , Member (State IState) sig
+     , Effect sig
+     , Carrier sig m
+     )
   => Text
   -> m Text
 interp input = do
-  (ctx, claims) <- get
-  stmt          <- parse input
-  case stmt of
+  (gamma, claims) <- get
+  stmt            <- parse input
+  runReader gamma $ case stmt of
     (Claim v e) -> do
-      (tOut, eOut) <- infer ctx (toCore e)
+      (tOut, eOut) <- infer (toCore e)
       case tOut of
         CUniverse -> do
-          eVal <- eval ctx eOut
+          eVal <- eval gamma eOut
           let newClaims = Env.insert v (Claimed eVal) claims
-          put (ctx, newClaims)
+          put (gamma, newClaims)
           pure "claimed"
         _ -> throwError NonTypeClaim
     (Define v e) -> case Env.lookup v claims of
       Nothing             -> throwError $ NoClaim v
       Just (Claimed tVal) -> do
-        eOut <- checkClaim ctx (toCore e) tVal
-        eVal <- eval ctx eOut
+        eOut <- checkClaim (toCore e) tVal
+        eVal <- eval gamma eOut
         let newCtx =
-              Env.insert v (Definition { _type = tVal, _value = eVal }) ctx
+              Env.insert v (Definition { _type = tVal, _value = eVal }) gamma
         put (newCtx, claims)
         pure "defined"
     (RawExpr e) -> do
-      (tOut, eOut) <- infer ctx (toCore e)
+      (tOut, eOut) <- infer (toCore e)
       pure . printPie $ fromCore (CThe tOut eOut)

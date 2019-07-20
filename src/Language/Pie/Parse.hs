@@ -69,7 +69,7 @@ identifier = p >>= check
     else return x
 
 varNameParser :: Parser VarName
-varNameParser = VarName . Text.pack <$> identifier
+varNameParser = flip VarName 0 . Text.pack <$> identifier
 
 mkUnaryExprParser :: Parser (Expr -> Expr) -> Parser Expr
 mkUnaryExprParser p = p <*> (space1 >> pieParser)

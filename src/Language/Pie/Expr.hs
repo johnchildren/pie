@@ -101,13 +101,13 @@ toCore = cata toCore'
   toCore' AtomF                        = CAtom
   toCore' (QuoteF s      )             = CQuote s
   -- | ΣF-Pair
-  toCore' (PairF e1 e2   )             = CSigma (Dimmed "x") e1 (Clos e2)
+  toCore' (PairF e1 e2   )             = CSigma (Dimmed "x" 0) e1 (Clos e2)
   toCore' (SigmaF v e1 e2)             = CSigma v e1 (Clos e2)
   toCore' (ConsF e1 e2   )             = CCons e1 e2
   toCore' (CarF pr       )             = CCar pr
   toCore' (CdrF pr       )             = CCdr pr
   -- | FunF-→1
-  toCore' (ArrowF e1 e2  )             = CPi (Dimmed "x") e1 (Clos e2)
+  toCore' (ArrowF e1 e2  )             = CPi (Dimmed "x" 0) e1 (Clos e2)
   toCore' (PiF v e1 e2   )             = CPi v e1 (Clos e2)
   toCore' (LambdaF v  e  )             = CLambda v (Clos e)
   toCore' (AppF    e1 e2 )             = CApp e1 e2
@@ -133,24 +133,24 @@ fromCore :: CoreExpr -> Expr
 fromCore = cata fromCore'
  where
   fromCore' :: Algebra CoreExpr Expr
-  fromCore' (CTheF e1 e2)                        = The e1 e2
-  fromCore' (CVarF v    )                        = Var v
-  fromCore' CAtomF                               = Atom
-  fromCore' (CQuoteF s                         ) = Quote s
-  fromCore' (CSigmaF (  Dimmed  _) e1 (Clos e2)) = Pair e1 (fromCore e2)
-  fromCore' (CSigmaF v@(VarName _) e1 (Clos e2)) = Sigma v e1 (fromCore e2)
-  fromCore' (CConsF e1 e2                      ) = Cons e1 e2
-  fromCore' (CCarF pr                          ) = Car pr
-  fromCore' (CCdrF pr                          ) = Cdr pr
-  fromCore' (CPiF (  Dimmed  _) e1 (Clos e2)   ) = Arrow e1 (fromCore e2)
-  fromCore' (CPiF v@(VarName _) e1 (Clos e2)   ) = Pi v e1 (fromCore e2)
-  fromCore' (CLambdaF v  (Clos e)              ) = Lambda v (fromCore e)
-  fromCore' (CAppF    e1 e2                    ) = App e1 e2
-  fromCore' CNatF                                = Nat
+  fromCore' (CTheF e1 e2)    = The e1 e2
+  fromCore' (CVarF v    )    = Var v
+  fromCore' CAtomF           = Atom
+  fromCore' (CQuoteF s)      = Quote s
+  fromCore' (CSigmaF (Dimmed _ _) e1 (Clos e2)) = Pair e1 (fromCore e2)
+  fromCore' (CSigmaF v@(VarName _ _) e1 (Clos e2)) = Sigma v e1 (fromCore e2)
+  fromCore' (CConsF e1 e2)   = Cons e1 e2
+  fromCore' (CCarF pr)       = Car pr
+  fromCore' (CCdrF pr)       = Cdr pr
+  fromCore' (CPiF (Dimmed _ _) e1 (Clos e2)) = Arrow e1 (fromCore e2)
+  fromCore' (CPiF v@(VarName _ _) e1 (Clos e2)) = Pi v e1 (fromCore e2)
+  fromCore' (CLambdaF v (Clos e)) = Lambda v (fromCore e)
+  fromCore' (CAppF e1 e2)    = App e1 e2
+  fromCore' CNatF            = Nat
 --  fromCore' CZeroF                               = Zero
-  fromCore' CZeroF                               = Int 0
-  fromCore' (CAdd1F (Int n))                     = Int (n + 1)
-  fromCore' (CAdd1F n      )                     = Add1 n
+  fromCore' CZeroF           = Int 0
+  fromCore' (CAdd1F (Int n)) = Int (n + 1)
+  fromCore' (CAdd1F n      ) = Add1 n
   fromCore' (CWhichNatF target base (Clos step)) =
     WhichNat target base (fromCore step)
   fromCore' (CIterNatF target base (Clos step)) =
