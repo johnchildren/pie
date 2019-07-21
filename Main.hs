@@ -26,7 +26,9 @@ import           Language.Pie.Interpreter                 ( interp
                                                           , IState
                                                           )
 import qualified Language.Pie.Environment      as Env
-
+import           System.IO                                ( hFlush
+                                                          , stdout
+                                                          )
 
 
 main :: IO ()
@@ -40,6 +42,8 @@ main = do
  where
   loop :: StateC IState (ErrorC InterpError (LiftC IO)) ()
   loop = do
+    sendM $ putStr "pie> "
+    sendM $ hFlush stdout
     line <- sendM Text.getLine
     catchError (interp line >>= sendM . Text.putStrLn) printError
     loop

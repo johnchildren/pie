@@ -24,6 +24,7 @@ import           Control.Effect.Error                     ( throwError
                                                           )
 import           Control.Effect.Fresh                     ( runFresh )
 import           Control.Effect.Reader                    ( Reader
+                                                          , ask
                                                           , runReader
                                                           )
 import           Control.Effect.State.Strict              ( get
@@ -49,7 +50,9 @@ import           Language.Pie.Expr                        ( toCore
                                                           , fromCore
                                                           , CoreExpr(..)
                                                           )
-import           Language.Pie.Values                      ( Value )
+import           Language.Pie.Values                      ( Value
+                                                          , Normal(..)
+                                                          )
 import           Language.Pie.Environment                 ( Env )
 import qualified Language.Pie.Environment      as Env
 import           Language.Pie.Symbols                     ( VarName )
@@ -57,6 +60,7 @@ import           Language.Pie.TypeChecker                 ( synth
                                                           , check
                                                           , Binding(..)
                                                           , ctxToEnvironment
+                                                          , readBackNorm
                                                           , TypeError
                                                           )
 
@@ -67,6 +71,7 @@ data InterpError = Parse PieParseError
                  | Eval EvalError
                  | Infer TypeError
                  | Check TypeError
+                 | ReadBack TypeError
                  | NonTypeClaim
                  | NoClaim VarName
                  deriving (Show, Eq)
@@ -76,10 +81,11 @@ newtype Claimed = Claimed Value
 printError :: (Member (Lift IO) sig, Carrier sig m) => InterpError -> m ()
 printError (Parse err) =
   sendM . Text.putStrLn . Text.pack $ errorBundlePretty err
-printError (Eval  err)  = sendM . Text.putStrLn . Text.pack . show $ err
-printError (Infer err)  = sendM . Text.putStrLn . Text.pack . show $ err
-printError (Check err)  = sendM . Text.putStrLn . Text.pack . show $ err
-printError NonTypeClaim = sendM $ Text.putStrLn "Not a type"
+printError (Eval     err) = sendM . Text.putStrLn . Text.pack . show $ err
+printError (Infer    err) = sendM . Text.putStrLn . Text.pack . show $ err
+printError (Check    err) = sendM . Text.putStrLn . Text.pack . show $ err
+printError (ReadBack err) = sendM . Text.putStrLn . Text.pack . show $ err
+printError NonTypeClaim   = sendM $ Text.putStrLn "Not a type"
 printError (NoClaim var) =
   sendM . Text.putStrLn $ "No claim: " <> Text.pack (show var)
 
@@ -118,13 +124,31 @@ checkClaim expr claim = do
     Right pair -> pure pair
 
 eval
-  :: (Member (Error InterpError) sig, Carrier sig m)
-  => Env Binding
-  -> CoreExpr
+  :: ( Member (Error InterpError) sig
+     , Member (Reader (Env Binding)) sig
+     , Carrier sig m
+     )
+  => CoreExpr
   -> m Value
-eval gamma expr =
+eval expr = do
+  gamma <- ask
   case run . runError . runReader (ctxToEnvironment gamma) $ val expr of
     Left  err -> throwError (Eval err)
+    Right v   -> pure v
+
+readBack
+  :: ( Member (Error InterpError) sig
+     , Member (Reader (Env Binding)) sig
+     , Effect sig
+     , Carrier sig m
+     )
+  => Value
+  -> Value
+  -> m CoreExpr
+readBack ty value = do
+  res <- runFresh . runError $ readBackNorm (NormThe ty value)
+  case res of
+    Left  err -> throwError (ReadBack err)
     Right v   -> pure v
 
 interp
@@ -143,7 +167,7 @@ interp input = do
       (tOut, eOut) <- infer (toCore e)
       case tOut of
         CUniverse -> do
-          eVal <- eval gamma eOut
+          eVal <- eval eOut
           let newClaims = Env.insert v (Claimed eVal) claims
           put (gamma, newClaims)
           pure "claimed"
@@ -152,11 +176,14 @@ interp input = do
       Nothing             -> throwError $ NoClaim v
       Just (Claimed tVal) -> do
         eOut <- checkClaim (toCore e) tVal
-        eVal <- eval gamma eOut
+        eVal <- eval eOut
         let newCtx =
               Env.insert v (Definition { _type = tVal, _value = eVal }) gamma
         put (newCtx, claims)
         pure "defined"
     (RawExpr e) -> do
       (tOut, eOut) <- infer (toCore e)
-      pure . printPie $ fromCore (CThe tOut eOut)
+      tOutVal      <- eval tOut
+      eOutVal      <- eval eOut
+      eOutNormed   <- readBack tOutVal eOutVal
+      pure . printPie $ fromCore (CThe tOut eOutNormed)

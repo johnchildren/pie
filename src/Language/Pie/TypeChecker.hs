@@ -183,8 +183,11 @@ readBackNeutral (NRecNat ne base step) =
 -- CoreExpressions that have no arguments to their constructor
 -- TODO: I'm sure there's a better word for this?
 isAtomic :: CoreExpr -> Bool
+-- AtomSame-Atom
 isAtomic CAtom     = True
+-- NatSame-Nat
 isAtomic CNat      = True
+-- NatSame-Zero
 isAtomic CZero     = True
 -- ListSame-nil
 isAtomic CNil      = True
@@ -214,7 +217,9 @@ alphaEquiv' (CVar v1) (CVar v2) (Env.lookup v1 -> Nothing) (Env.lookup v2 -> Not
 alphaEquiv' (CVar v1) (CVar v2) (Env.lookup v1 -> Just e3) (Env.lookup v2 -> Just e4)
   = e3 == e4
 alphaEquiv' (CVar   _ ) (CVar   _ ) _    _    = False
+-- AtomSame-Tick
 alphaEquiv' (CQuote a1) (CQuote a2) _    _    = a1 == a2
+-- NatSame-add1
 alphaEquiv' (CAdd1  n1) (CAdd1  n2) env1 env2 = alphaEquiv' n1 n2 env1 env2
 alphaEquiv' (CLambda x (Clos b1)) (CLambda y (Clos b2)) xs1 xs2 =
   let freshened = freshen2 xs1 xs2
@@ -282,13 +287,14 @@ synth (CCdr pr) = do
     other -> do
       otherVal <- readBackNorm (NormThe VUniverse other)
       throwError $ NonPairError otherVal
+-- NatF
 synth CNat               = pure (CUniverse, CNat)
 synth (CPi x a (Clos b)) = do
   aOut <- check a VUniverse
   aVal <- val aOut
   bOut <- local (\g -> extendCtx g x aVal) $ check b VUniverse
   pure (CUniverse, CPi x aOut (Clos bOut))
--- Atom is a Universe
+-- AtomF
 synth CAtom             = pure (CUniverse, CAtom)
 synth (CApp rator rand) = do
   (ratorTy, ratorOut) <- synth rator
@@ -303,10 +309,11 @@ synth (CApp rator rand) = do
     other -> do
       otherVal <- readBackNorm (NormThe VUniverse other)
       throwError $ UnexpectedPiTypeError otherVal
+-- AtomI
 synth q@(CQuote _) = pure (CAtom, q)
--- Zero is a Nat
+-- NatI-1
 synth CZero        = pure (CNat, CZero)
--- if n in a@(Add1 n) is a Nat, a is a Nat
+-- NatI-2
 synth a@(CAdd1 n)  = do
   _ <- check n VNat
   pure (CNat, a)
@@ -320,6 +327,12 @@ synth (CVar x) = do
   tVal <- lookupType x
   t    <- readBackNorm (NormThe VUniverse tVal)
   pure (t, CVar x)
+synth (CWhichNat t b (Clos s)) = do
+  gamma       <- ask
+  tOut        <- check t VNat
+  (bTy, bOut) <- synth b
+  sOut <- check s (VPi VNat (CLOS (ctxToEnvironment gamma) (Dimmed "x" 0) bTy))
+  pure (bTy, CWhichNat tOut (CThe bTy bOut) (Clos sOut))
 synth other = throwError $ TypeSynthesisError other
 
 
