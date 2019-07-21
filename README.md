@@ -30,12 +30,16 @@ The `pie-repl` build target provides a binary that can be used as a pie repl. Th
 
 ```
 Welcome to pie! Each line will be evaluated as an expr!
-Pie> (claim twin (Pi (Y Universe) (-> Y (Pair Y Y))))
-Pie> (define twin (lambda (Y) (lambda (x) (cons x x))))
-Pie> ((twin Nat) 3)
-(the (Pair Nat Nat) ((twin Nat) 3))
-Pie> ((twin Atom) 'foo)
-(the (Pair Atom Atom) ((twin Atom) 'foo))
+pie> (claim twin (Pi (Y Universe) (-> Y (Pair Y Y))))
+claimed
+pie> (define twin (lambda (Y) (lambda (x) (cons x x))))
+defined
+pie> ((twin Nat) 3)
+(the (Pair Nat Nat) (cons 3 3))
+pie> (which-Nat 0 'foo (lambda (x) 'bar))
+(the Atom 'foo)
+pie> (which-Nat 1 'bar (lambda (x) 'bar))
+(the Atom 'bar)
 ```
 
 ## Reference Material
