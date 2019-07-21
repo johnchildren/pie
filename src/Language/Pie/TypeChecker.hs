@@ -21,16 +21,19 @@ where
 import           Prelude
 import           Control.Effect                           ( Carrier
                                                           , Member
+                                                          , run
                                                           )
 import           Control.Effect.Fresh                     ( Fresh
                                                           , fresh
                                                           )
 import           Control.Effect.Error                     ( Error
                                                           , throwError
+                                                          , runError
                                                           )
 import           Control.Effect.Reader                    ( Reader
                                                           , ask
                                                           , local
+                                                          , runReader
                                                           )
 import           Language.Pie.Symbols                     ( VarName(..) )
 import           Language.Pie.Environment                 ( Env )
@@ -68,7 +71,7 @@ val
 val e = do
   gamma <- ask
   let rho = ctxToEnvironment gamma
-  case Eval.val rho e of
+  case run . runError . runReader rho $ Eval.val e of
     Left  err -> throwError (NbEError err)
     Right v   -> pure v
 
@@ -77,23 +80,23 @@ valOfClosure
   => Closure
   -> Value
   -> m Value
-valOfClosure cl v = case Eval.valOfClosure cl v of
+valOfClosure cl v = case run . runError $ Eval.valOfClosure cl v of
   Left  err -> throwError (NbEError err)
   Right res -> pure res
 
 doCar :: (Member (Error TypeError) sig, Carrier sig m) => Value -> m Value
-doCar v = case Eval.doCar v of
+doCar v = case run . runError $ Eval.doCar v of
   Left  err -> throwError (NbEError err)
   Right res -> pure res
 
 doCdr :: (Member (Error TypeError) sig, Carrier sig m) => Value -> m Value
-doCdr v = case Eval.doCdr v of
+doCdr v = case run . runError $ Eval.doCdr v of
   Left  err -> throwError (NbEError err)
   Right res -> pure res
 
 doApp
   :: (Member (Error TypeError) sig, Carrier sig m) => Value -> Value -> m Value
-doApp f v = case Eval.doApp f v of
+doApp f v = case run . runError $ Eval.doApp f v of
   Left  err -> throwError (NbEError err)
   Right res -> pure res
 

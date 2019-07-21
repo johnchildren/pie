@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Language.Pie.Eval
   ( EvalError(..)
   , val
@@ -9,6 +11,16 @@ module Language.Pie.Eval
 where
 
 import           Prelude
+import           Control.Effect                           ( Carrier
+                                                          , Member
+                                                          )
+import           Control.Effect.Reader                    ( Reader
+                                                          , ask
+                                                          , runReader
+                                                          )
+import           Control.Effect.Error                     ( Error
+                                                          , throwError
+                                                          )
 import           Control.Monad                            ( join )
 import           Data.Functor.Foldable                    ( Base
                                                           , cata
@@ -38,76 +50,124 @@ data EvalError = UnknownVariableError VarName
                | InvalidRecNat CoreExpr Value Value
   deriving (Show, Eq)
 
-valOfClosure :: Closure -> Value -> Either EvalError Value
-valOfClosure (CLOS rho x e) v = val (Env.insert x v rho) e
+valOfClosure
+  :: (Member (Error EvalError) sig, Carrier sig m)
+  => Closure
+  -> Value
+  -> m Value
+valOfClosure (CLOS rho x e) v = runReader (Env.insert x v rho) $ val e
 
-val :: Env Value -> CoreExpr -> Either EvalError Value
-val rho = cata val'
+val
+  :: ( Member (Error EvalError) sig
+     , Member (Reader (Env Value)) sig
+     , Carrier sig m
+     )
+  => CoreExpr
+  -> m Value
+val = cata val'
  where
-  val' :: Algebra CoreExpr (Either EvalError Value)
-  val' (CTheF _ expr        ) = expr
-  val' (CPiF x a (Clos b)   ) = (\y -> VPi y (CLOS rho x b)) <$> a
-  val' (CLambdaF x (Clos b) ) = Right $ VLambda (CLOS rho x b)
-  val' (CSigmaF x a (Clos d)) = (\y -> VSigma y (CLOS rho x d)) <$> a
-  val' (CConsF a d          ) = VCons <$> a <*> d
-  val' (CCarF pr            ) = doCar =<< pr
-  val' (CCdrF pr            ) = doCdr =<< pr
-  val' CNatF                  = Right VNat
-  val' CZeroF                 = Right VZero
-  val' (CAdd1F n)             = VAdd1 <$> n
-  val' CAtomF                 = Right VAtom
-  val' (CQuoteF ad      )     = Right $ VQuote ad
-  val' (CAppF rator rand)     = join $ doApp <$> rator <*> rand
+  val'
+    :: ( Member (Error EvalError) sig
+       , Member (Reader (Env Value)) sig
+       , Carrier sig m
+       )
+    => Algebra CoreExpr (m Value)
+  val' (CTheF _ expr     ) = expr
+  val' (CPiF x a (Clos b)) = do
+    rho <- ask
+    (\y -> VPi y (CLOS rho x b)) <$> a
+  val' (CLambdaF x (Clos b)) = do
+    rho <- ask
+    pure $ VLambda (CLOS rho x b)
+  val' (CSigmaF x a (Clos d)) = do
+    rho <- ask
+    (\y -> VSigma y (CLOS rho x d)) <$> a
+  val' (CConsF a d)       = VCons <$> a <*> d
+  val' (CCarF pr  )       = doCar =<< pr
+  val' (CCdrF pr  )       = doCdr =<< pr
+  val' CNatF              = pure VNat
+  val' CZeroF             = pure VZero
+  val' (CAdd1F n)         = VAdd1 <$> n
+  val' CAtomF             = pure VAtom
+  val' (CQuoteF ad      ) = pure $ VQuote ad
+  val' (CAppF rator rand) = join $ doApp <$> rator <*> rand
   val' (CWhichNatF target base step) =
-    join $ doWhichNat rho step <$> target <*> base
-  val' (CIterNatF target base step) =
-    join $ doIterNat rho step <$> target <*> base
-  val' (CRecNatF target base step) =
-    join $ doRecNat rho step <$> target <*> base
-  val' (CListF e)      = VList <$> e
-  val' CNilF           = Right VNil
-  val' (CListExpF a d) = VListExp <$> a <*> d
-  val' (CVarF x      ) = case Env.lookup x rho of
-    Just v  -> Right v
-    Nothing -> Left $ UnknownVariableError x
-  val' CUniverseF = Right VUniverse
+    join $ doWhichNat step <$> target <*> base
+  val' (CIterNatF target base step) = join $ doIterNat step <$> target <*> base
+  val' (CRecNatF  target base step) = join $ doRecNat step <$> target <*> base
+  val' (CListF e                  ) = VList <$> e
+  val' CNilF                        = pure VNil
+  val' (CListExpF a d)              = VListExp <$> a <*> d
+  val' (CVarF x      )              = do
+    rho <- ask
+    case Env.lookup x rho of
+      Just v  -> pure v
+      Nothing -> throwError $ UnknownVariableError x
+  val' CUniverseF = pure VUniverse
 
-doCar :: Value -> Either EvalError Value
-doCar (VCons    a            _ ) = Right a
-doCar (VSigma   a            _ ) = Right a -- TODO: Not sure if this is true
-doCar (VNeutral (VSigma a _) ne) = Right $ VNeutral a (NCar ne)
-doCar v                          = Left $ InvalidCar v
+doCar :: (Member (Error EvalError) sig, Carrier sig m) => Value -> m Value
+doCar (VCons    a            _ ) = pure a
+doCar (VSigma   a            _ ) = pure a -- TODO: Not sure if this is true
+doCar (VNeutral (VSigma a _) ne) = pure $ VNeutral a (NCar ne)
+doCar v                          = throwError $ InvalidCar v
 
-doCdr :: Value -> Either EvalError Value
-doCdr (  VCons    _            d ) = Right d
+doCdr :: (Member (Error EvalError) sig, Carrier sig m) => Value -> m Value
+doCdr (  VCons    _            d ) = pure d
 -- TODO: Cdr of sigma for non-neutral ?
 doCdr v@(VNeutral (VSigma _ d) ne) = do
   aVal  <- doCar v
   dClos <- valOfClosure d aVal
-  Right $ VNeutral dClos (NCdr ne)
-doCdr v = Left $ InvalidCdr v
+  pure $ VNeutral dClos (NCdr ne)
+doCdr v = throwError $ InvalidCdr v
 
-doApp :: Value -> Value -> Either EvalError Value
+doApp
+  :: (Member (Error EvalError) sig, Carrier sig m) => Value -> Value -> m Value
 doApp (VLambda c) arg = valOfClosure c arg
 doApp (VNeutral (VPi a b) ne) arg =
   (\y -> VNeutral y (NAp ne (NormThe a arg))) <$> valOfClosure b arg
-doApp v1 v2 = Left $ InvalidApp v1 v2
+doApp v1 v2 = throwError $ InvalidApp v1 v2
 
-doWhichNat :: Env Value -> Clos -> Value -> Value -> Either EvalError Value
-doWhichNat _ _ VZero base = Right base
-doWhichNat rho (Clos (CLambda x (Clos e))) (VAdd1 n) _ =
-  doApp (VLambda (CLOS rho x e)) n
-doWhichNat _ (Clos step) v base = Left $ InvalidWhichNat step v base
+doWhichNat
+  :: ( Member (Error EvalError) sig
+     , Member (Reader (Env Value)) sig
+     , Carrier sig m
+     )
+  => Clos
+  -> Value
+  -> Value
+  -> m Value
+doWhichNat _ VZero base = pure base
+doWhichNat (Clos (CLambda x (Clos e))) (VAdd1 n) _ =
+  ask >>= \rho -> doApp (VLambda (CLOS rho x e)) n
+doWhichNat (Clos step) v base = throwError $ InvalidWhichNat step v base
 
-doIterNat :: Env Value -> Clos -> Value -> Value -> Either EvalError Value
-doIterNat _ _ VZero base = Right base
-doIterNat rho step@(Clos (CLambda x (Clos e))) (VAdd1 n) base =
-  doApp (VLambda (CLOS rho x e)) =<< doIterNat rho step n base
-doIterNat _ (Clos step) v base = Left $ InvalidIterNat step v base
+doIterNat
+  :: ( Member (Error EvalError) sig
+     , Member (Reader (Env Value)) sig
+     , Carrier sig m
+     )
+  => Clos
+  -> Value
+  -> Value
+  -> m Value
+doIterNat _ VZero     base = pure base
+doIterNat step@(Clos (CLambda x (Clos e))) (VAdd1 n) base = do
+  rho <- ask
+  doApp (VLambda (CLOS rho x e)) =<< doIterNat step n base
+doIterNat (Clos step) v base = throwError $ InvalidIterNat step v base
 
-doRecNat :: Env Value -> Clos -> Value -> Value -> Either EvalError Value
-doRecNat _   _ VZero     base = Right base
-doRecNat rho step@(Clos (CLambda x (Clos e))) (VAdd1 n) base = do
+doRecNat
+  :: ( Member (Error EvalError) sig
+     , Member (Reader (Env Value)) sig
+     , Carrier sig m
+     )
+  => Clos
+  -> Value
+  -> Value
+  -> m Value
+doRecNat _ VZero     base = pure base
+doRecNat step@(Clos (CLambda x (Clos e))) (VAdd1 n) base = do
+  rho   <- ask
   rator <- doApp (VLambda (CLOS rho x e)) n
-  doApp rator =<< doRecNat rho step n base
-doRecNat _ (Clos step) v base = Left $ InvalidRecNat step v base
+  doApp rator =<< doRecNat step n base
+doRecNat (Clos step) v base = throwError $ InvalidRecNat step v base
