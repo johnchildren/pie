@@ -16,6 +16,7 @@ import           Prelude                           hiding ( putStrLn
 import           Control.Effect                           ( Carrier
                                                           , Member
                                                           , Effect
+                                                          , run
                                                           )
 import           Control.Effect.Error                     ( throwError
                                                           , runError
@@ -121,9 +122,10 @@ eval
   => Env Binding
   -> CoreExpr
   -> m Value
-eval ctx expr = case val (ctxToEnvironment ctx) expr of
-  Left  err -> throwError (Eval err)
-  Right v   -> pure v
+eval gamma expr =
+  case run . runError . runReader (ctxToEnvironment gamma) $ val expr of
+    Left  err -> throwError (Eval err)
+    Right v   -> pure v
 
 interp
   :: ( Member (Error InterpError) sig

@@ -4,15 +4,19 @@ module EvalTest
 where
 
 import           Prelude
+import           Control.Effect                           ( run )
+import           Control.Effect.Error                     ( runError )
+import           Control.Effect.Reader                    ( runReader )
 import           Data.Text                                ( Text )
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Language.Pie.Symbols                     ( Symbol(..)
                                                           , VarName(..)
                                                           )
+import           Language.Pie.Environment                 ( Env )
 import qualified Language.Pie.Environment      as Env
-import           Language.Pie.Eval                        ( val
-                                                          , EvalError
+import           Language.Pie.Eval                        ( EvalError
+                                                          , val
                                                           )
 import           Language.Pie.Values                      ( Value(..)
                                                           , Closure(..)
@@ -23,7 +27,8 @@ import           Language.Pie.Expr                        ( Expr(..)
                                                           )
 
 evalExpr :: Expr -> Either EvalError Value
-evalExpr = val Env.empty . toCore
+evalExpr expr =
+  run . runError . runReader (Env.empty :: Env Value) $ val (toCore expr)
 
 test_eval :: TestTree
 test_eval = testGroup

@@ -1,6 +1,6 @@
 { mkDerivation, base, containers, fused-effects, haskeline
 , hedgehog, megaparsec, prettyprinter, recursion-schemes, repline
-, stdenv, tasty, tasty-hedgehog, tasty-hspec, text, transformers
+, stdenv, tasty, tasty-hedgehog, tasty-hunit, text, transformers
 }:
 mkDerivation {
   pname = "pie";
@@ -16,7 +16,7 @@ mkDerivation {
     base fused-effects haskeline repline text transformers
   ];
   testHaskellDepends = [
-    base fused-effects hedgehog tasty tasty-hedgehog tasty-hspec text
+    base fused-effects hedgehog tasty tasty-hedgehog tasty-hunit text
     transformers
   ];
   description = "Pie interpreter";

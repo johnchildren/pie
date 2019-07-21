@@ -2,7 +2,7 @@
 
 # pie
 
-Just an interpreter for the pie language described in "The Little Typer" I'm working on as a hobby.
+Just an interpreter for the pie language described in ["The Little Typer"](http://www.thelittletyper.com/) I'm working on as a hobby. Buy the book. Seriously. It's good.
 
 ## Building
 
@@ -22,9 +22,7 @@ as appropriate. Note that building with nix will also run the test suite.
 
 ## Development
 
-Running the tests requires the [`tasty-discover`](https://git.coop/decentral1se/tasty-discover) binary to be installed. This can either be done independently or a nix shell file is provided with the required tools.
-
-Once this condition is met you can run the tests with `cabal new-test`.
+The tests can be run with `cabal new-test`.
 
 ## Repl
 
