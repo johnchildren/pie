@@ -1,12 +1,12 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE ConstraintKinds #-}
 
 module Language.Pie.TypeChecker
-  ( alphaEquiv
-  , synth
+  ( synth
   , check
   , convert
   , val
@@ -19,6 +19,9 @@ where
 
 
 import           Prelude
+import           Control.Applicative                      ( liftA2
+                                                          , liftA3
+                                                          )
 import           Control.Effect                           ( Carrier
                                                           , Member
                                                           , run
@@ -204,38 +207,68 @@ freshen (VarName sym _) = VarName sym <$> fresh
 freshen (Dimmed  sym _) = Dimmed sym <$> fresh
 
 -- generate a symbol not in either environment
-freshen2 :: Bindings -> Bindings -> VarName
-freshen2 _ _ = VarName "foo" 0
+freshen2 :: (Applicative m) => m VarName
+freshen2 = pure $ VarName "foo" 0
 
-alphaEquiv :: CoreExpr -> CoreExpr -> Bool
-alphaEquiv e1 e2 = alphaEquiv' e1 e2 Env.empty Env.empty
+liftA4
+  :: Applicative f => (a -> b -> c -> d -> e) -> f a -> f b -> f c -> f d -> f e
+liftA4 f a b c d = liftA3 f a b c <*> d
 
-alphaEquiv' :: CoreExpr -> CoreExpr -> Bindings -> Bindings -> Bool
-alphaEquiv' e1 e2 _ _ | e1 == e2 && isAtomic e1 = True
-alphaEquiv' (CVar v1) (CVar v2) (Env.lookup v1 -> Nothing) (Env.lookup v2 -> Nothing)
-  = v1 == v2
-alphaEquiv' (CVar v1) (CVar v2) (Env.lookup v1 -> Just e3) (Env.lookup v2 -> Just e4)
-  = e3 == e4
-alphaEquiv' (CVar   _ ) (CVar   _ ) _    _    = False
+-- TODO: should be able to check that they have the same type as well
+runAlphaEquiv :: CoreExpr -> CoreExpr -> Bool
+runAlphaEquiv e1 e2 =
+  run . runReader (Env.empty :: Bindings, Env.empty :: Bindings) $ alphaEquiv
+    e1
+    e2
+
+alphaEquiv
+  :: (Member (Reader (Bindings, Bindings)) sig, Carrier sig m)
+  => CoreExpr
+  -> CoreExpr
+  -> m Bool
+alphaEquiv e1 e2 | e1 == e2 && isAtomic e1 = pure True
+alphaEquiv (CVar v1) (CVar v2)             = do
+  (env1, env2) <- ask @(Bindings, Bindings)
+  case (Env.lookup v1 env1, Env.lookup v2 env2) of
+    (Nothing, Nothing) -> pure $ v1 == v2
+    (Just e3, Just e4) -> pure $ e3 == e4
+    _                  -> pure False
 -- AtomSame-Tick
-alphaEquiv' (CQuote a1) (CQuote a2) _    _    = a1 == a2
+alphaEquiv (CQuote a1          ) (CQuote a2          ) = pure $ a1 == a2
 -- NatSame-add1
-alphaEquiv' (CAdd1  n1) (CAdd1  n2) env1 env2 = alphaEquiv' n1 n2 env1 env2
-alphaEquiv' (CLambda x (Clos b1)) (CLambda y (Clos b2)) xs1 xs2 =
-  let freshened = freshen2 xs1 xs2
-  in  let bigger1 = Env.insert x freshened xs1
-          bigger2 = Env.insert y freshened xs2
-      in  alphaEquiv' b1 b2 bigger1 bigger2
-alphaEquiv' (CPi x a1 (Clos b1)) (CPi y a2 (Clos b2)) xs1 xs2 =
-  alphaEquiv' a1 a2 xs1 xs2
-    && let freshened = freshen2 xs1 xs2
-       in  let bigger1 = Env.insert x freshened xs1
-               bigger2 = Env.insert y freshened xs2
-           in  alphaEquiv' b1 b2 bigger1 bigger2
-alphaEquiv' (CList x) (CList y) env1 env2 = alphaEquiv' x y env1 env2
-alphaEquiv' (CListExp x xs) (CListExp y ys) env1 env2 =
-  alphaEquiv' x y env1 env2 && alphaEquiv' xs ys env1 env2
-alphaEquiv' _ _ _ _ = False
+alphaEquiv (CAdd1  n1          ) (CAdd1  n2          ) = alphaEquiv n1 n2
+alphaEquiv (CLambda x (Clos b1)) (CLambda y (Clos b2)) = do
+  freshened <- freshen2
+  local
+      (\(env1, env2) ->
+        (Env.insert x freshened env1, Env.insert y freshened env2)
+      )
+    $ alphaEquiv b1 b2
+alphaEquiv (CPi x a1 (Clos b1)) (CPi y a2 (Clos b2)) = do
+  freshened <- freshen2
+  liftA2
+    (&&)
+    (alphaEquiv a1 a2)
+    ( local
+        (\(env1, env2) ->
+          (Env.insert x freshened env1, Env.insert y freshened env2)
+        )
+    $ alphaEquiv b1 b2
+    )
+-- NatSame-w-N1
+-- TODO: check type of s1
+alphaEquiv (CWhichNat CZero (CThe bTy1 b1) s1) b2 = alphaEquiv b1 b2
+-- NatSame-w-N
+alphaEquiv (CWhichNat t1 (CThe bTy1 b1) (Clos s1)) (CWhichNat t2 (CThe bTy2 b2) (Clos s2))
+  = liftA4 (\w x y z -> w && x && y && z)
+           (alphaEquiv t1 t2)
+           (alphaEquiv bTy1 bTy2)
+           (alphaEquiv b1 b2)
+           (alphaEquiv s1 s2)
+alphaEquiv (CList x) (CList y) = alphaEquiv x y
+alphaEquiv (CListExp x xs) (CListExp y ys) =
+  liftA2 (&&) (alphaEquiv x y) (alphaEquiv xs ys)
+alphaEquiv _ _ = pure False
 
 lookupType
   :: ( Member (Error TypeError) sig
@@ -382,6 +415,6 @@ convert tv v1 v2 = do
   e1 <- readBackNorm (NormThe tv v1)
   e2 <- readBackNorm (NormThe tv v2)
   t  <- readBackNorm (NormThe VUniverse tv)
-  if alphaEquiv e1 e2
+  if runAlphaEquiv e1 e2
     then pure (e1, e2)
     else throwError $ UnificationError e1 t e2
