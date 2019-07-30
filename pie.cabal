@@ -13,6 +13,10 @@ build-type:          Simple
 extra-source-files:  ChangeLog.md
 
 
+source-repository head
+  type:     git
+  location: https://github.com/johnchildren/pie
+
 common haskell
   default-language:     Haskell2010
   default-extensions:   OverloadedStrings
