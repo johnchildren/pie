@@ -6,19 +6,11 @@ Just an interpreter for the pie language described in ["The Little Typer"](http:
 
 ## Building
 
-The project can be built with either cabal or nix, run either
+The project can be built with either cabal, run:
 
 ```
 cabal new-build
 ```
-
-or
-
-```
-nix build -f release.nix
-```
-
-as appropriate. Note that building with nix will also run the test suite.
 
 ## Development
 
