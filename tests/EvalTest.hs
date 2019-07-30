@@ -7,6 +7,7 @@ import           Prelude
 import           Control.Effect                           ( run )
 import           Control.Effect.Error                     ( runError )
 import           Control.Effect.Reader                    ( runReader )
+import           Data.List.NonEmpty                       ( NonEmpty(..) )
 import           Data.Text                                ( Text )
 import           Test.Tasty
 import           Test.Tasty.HUnit
@@ -60,17 +61,20 @@ test_eval = testGroup
   , testGroup
     "lambda expressions"
     [ testCase "can apply lambda expressions"
-    $   evalExpr (App (mkLambda "x" (mkVar "x")) Atom)
+    $   evalExpr (App (mkLambda "x" (mkVar "x")) (Atom :| []))
     @=? Right VAtom
     , testCase "will normalise while applying a lambda expression"
-    $ evalExpr (App (mkLambda "x" (Car (Cons (mkVar "x") (mkAtom "foo")))) Atom)
+    $   evalExpr
+          (App (mkLambda "x" (Car (Cons (mkVar "x") (mkAtom "foo")))) (Atom :| [])
+          )
     @=? Right VAtom
     , testCase "will ignore unused variables"
-    $   evalExpr (App (mkLambda "x" (mkAtom "foo")) Atom)
+    $   evalExpr (App (mkLambda "x" (mkAtom "foo")) (Atom :| []))
     @=? Right (mkAtomVal "foo")
     , testCase "works with nested lambda applications"
     $   evalExpr
-          (App (App (mkLambda "x" (mkLambda "y" (mkVar "x"))) Atom) (mkAtom "foo")
+          (App (App (mkLambda "x" (mkLambda "y" (mkVar "x"))) (Atom :| []))
+               (mkAtom "foo" :| [])
           )
     @=? Right VAtom
     ]
@@ -136,7 +140,7 @@ mkVar :: Text -> Expr
 mkVar = Var . flip VarName 0
 
 mkLambda :: Text -> Expr -> Expr
-mkLambda x = Lambda (VarName x 0)
+mkLambda x = Lambda (VarName x 0 :| [])
 
 mkAtomVal :: Text -> Value
 mkAtomVal = VQuote . Symbol

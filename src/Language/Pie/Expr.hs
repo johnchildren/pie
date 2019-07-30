@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Language.Pie.Expr
@@ -24,27 +25,34 @@ import           Prelude                                  ( Show
                                                           , (-)
                                                           , error
                                                           )
-import           Language.Pie.Symbols                     ( Symbol(..)
-                                                          , VarName(..)
+import           Data.List.NonEmpty                       ( NonEmpty((:|))
+                                                          , (<|)
                                                           )
+import qualified Data.List.NonEmpty            as NonEmpty
 import           Data.Functor.Foldable                    ( Base
                                                           , cata
                                                           )
 import           Data.Functor.Foldable.TH                 ( makeBaseFunctor )
+import           Language.Pie.Symbols                     ( Symbol
+                                                          , VarName
+                                                            ( VarName
+                                                            , Dimmed
+                                                            )
+                                                          )
 
 data Expr = The Expr Expr
          | Var VarName
          | Atom
          | Quote Symbol
          | Pair Expr Expr
-         | Sigma VarName Expr Expr
+         | Sigma (NonEmpty (VarName, Expr)) Expr
          | Cons Expr Expr
          | Car Expr
          | Cdr Expr
          | Arrow Expr Expr
-         | Pi VarName Expr Expr
-         | Lambda VarName Expr
-         | App Expr Expr
+         | Pi (NonEmpty (VarName, Expr)) Expr
+         | Lambda (NonEmpty VarName) Expr
+         | App Expr (NonEmpty Expr)
          | Nat
          | Zero
          | Add1 Expr
@@ -99,18 +107,18 @@ toCore = cata toCore'
   toCore' (TheF e1 e2)                 = CThe e1 e2
   toCore' (VarF v    )                 = CVar v
   toCore' AtomF                        = CAtom
-  toCore' (QuoteF s      )             = CQuote s
+  toCore' (QuoteF s       )            = CQuote s
   -- | ΣF-Pair
-  toCore' (PairF e1 e2   )             = CSigma (Dimmed "x" 0) e1 (Clos e2)
-  toCore' (SigmaF v e1 e2)             = CSigma v e1 (Clos e2)
-  toCore' (ConsF e1 e2   )             = CCons e1 e2
-  toCore' (CarF pr       )             = CCar pr
-  toCore' (CdrF pr       )             = CCdr pr
+  toCore' (PairF  e1 e2   )            = CSigma (Dimmed "x" 0) e1 (Clos e2)
+  toCore' (SigmaF vs body )            = encodeSigma vs body
+  toCore' (ConsF  e1 e2   )            = CCons e1 e2
+  toCore' (CarF pr        )            = CCar pr
+  toCore' (CdrF pr        )            = CCdr pr
   -- | FunF-→1
-  toCore' (ArrowF e1 e2  )             = CPi (Dimmed "x" 0) e1 (Clos e2)
-  toCore' (PiF v e1 e2   )             = CPi v e1 (Clos e2)
-  toCore' (LambdaF v  e  )             = CLambda v (Clos e)
-  toCore' (AppF    e1 e2 )             = CApp e1 e2
+  toCore' (ArrowF  e1 e2  )            = CPi (Dimmed "x" 0) e1 (Clos e2)
+  toCore' (PiF     vs body)            = encodePi vs body
+  toCore' (LambdaF vs body)            = encodeLambda vs body
+  toCore' (AppF    f  args)            = encodeApp f args
   toCore' NatF                         = CNat
   toCore' ZeroF                        = CZero
   toCore' (Add1F n                   ) = CAdd1 n
@@ -123,6 +131,24 @@ toCore = cata toCore'
   toCore' (ListExpF e1 e2)             = CListExp e1 e2
   toCore' UniverseF                    = CUniverse
 
+encodeSigma :: NonEmpty (VarName, CoreExpr) -> CoreExpr -> CoreExpr
+encodeSigma ((v, ty) :| []) body = CSigma v ty (Clos body)
+encodeSigma ((v, ty) :| vs) body =
+  CSigma v ty (Clos (encodeSigma (NonEmpty.fromList vs) body))
+
+encodePi :: NonEmpty (VarName, CoreExpr) -> CoreExpr -> CoreExpr
+encodePi ((v, ty) :| []) body = CPi v ty (Clos body)
+encodePi ((v, ty) :| vs) body =
+  CPi v ty (Clos (encodePi (NonEmpty.fromList vs) body))
+
+encodeLambda :: NonEmpty VarName -> CoreExpr -> CoreExpr
+encodeLambda (v :| []) body = CLambda v (Clos body)
+encodeLambda (v :| vs) body =
+  CLambda v (Clos (encodeLambda (NonEmpty.fromList vs) body))
+
+encodeApp :: CoreExpr -> NonEmpty CoreExpr -> CoreExpr
+encodeApp e1 (e2 :| []) = CApp e1 e2
+encodeApp e1 (e2 :| es) = CApp e1 (encodeApp e2 (NonEmpty.fromList es))
 
 encodeInteger :: Integer -> CoreExpr
 encodeInteger 0         = CZero
@@ -133,19 +159,27 @@ fromCore :: CoreExpr -> Expr
 fromCore = cata fromCore'
  where
   fromCore' :: Algebra CoreExpr Expr
-  fromCore' (CTheF e1 e2)    = The e1 e2
-  fromCore' (CVarF v    )    = Var v
-  fromCore' CAtomF           = Atom
-  fromCore' (CQuoteF s)      = Quote s
+  fromCore' (CTheF e1 e2)                       = The e1 e2
+  fromCore' (CVarF v    )                       = Var v
+  fromCore' CAtomF                              = Atom
+  fromCore' (CQuoteF s                        ) = Quote s
   fromCore' (CSigmaF (Dimmed _ _) e1 (Clos e2)) = Pair e1 (fromCore e2)
-  fromCore' (CSigmaF v@(VarName _ _) e1 (Clos e2)) = Sigma v e1 (fromCore e2)
-  fromCore' (CConsF e1 e2)   = Cons e1 e2
-  fromCore' (CCarF pr)       = Car pr
-  fromCore' (CCdrF pr)       = Cdr pr
+  fromCore' (CSigmaF v@(VarName _ _) e1 (Clos (fromCore -> Sigma vs e2))) =
+    Sigma ((v, e1) <| vs) e2
+  fromCore' (CSigmaF v@(VarName _ _) e1 (Clos (fromCore -> e2))) =
+    Sigma ((v, e1) :| []) e2
+  fromCore' (CConsF e1 e2                  ) = Cons e1 e2
+  fromCore' (CCarF pr                      ) = Car pr
+  fromCore' (CCdrF pr                      ) = Cdr pr
   fromCore' (CPiF (Dimmed _ _) e1 (Clos e2)) = Arrow e1 (fromCore e2)
-  fromCore' (CPiF v@(VarName _ _) e1 (Clos e2)) = Pi v e1 (fromCore e2)
-  fromCore' (CLambdaF v (Clos e)) = Lambda v (fromCore e)
-  fromCore' (CAppF e1 e2)    = App e1 e2
+  fromCore' (CPiF v@(VarName _ _) e1 (Clos (fromCore -> Pi vs e2))) =
+    Pi ((v, e1) <| vs) e2
+  fromCore' (CPiF v@(VarName _ _) e1 (Clos (fromCore -> e2))) =
+    Pi ((v, e1) :| []) e2
+  fromCore' (CLambdaF v (Clos (fromCore -> Lambda vs e))) = Lambda (v <| vs) e
+  fromCore' (CLambdaF v (Clos (fromCore -> e))) = Lambda (v :| []) e
+  fromCore' (CAppF e1 (App e2 es)) = App e1 (e2 <| es)
+  fromCore' (CAppF e1 e2)    = App e1 (e2 :| [])
   fromCore' CNatF            = Nat
 --  fromCore' CZeroF                               = Zero
   fromCore' CZeroF           = Int 0

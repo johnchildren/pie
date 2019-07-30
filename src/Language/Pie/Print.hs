@@ -3,26 +3,43 @@ module Language.Pie.Print
   )
 where
 
-import           Prelude                                  ( (.) )
-import Data.Eq ((==))
+import           Control.Applicative                      ( (<$>) )
+import           Data.Function                            ( (.)
+                                                          , ($)
+                                                          )
+import           Data.Eq                                  ( (==) )
+import qualified Data.List.NonEmpty            as NonEmpty
 import           Data.Text.Prettyprint.Doc.Render.Text    ( renderStrict )
 import           Data.Text                                ( Text )
 import           Data.Text.Prettyprint.Doc                ( (<>)
                                                           , (<+>)
                                                           , Doc
                                                           , pretty
+                                                          , enclose
+                                                          , encloseSep
+                                                          , hsep
+                                                          , lparen
+                                                          , rparen
+                                                          , space
                                                           , layoutPretty
                                                           , defaultLayoutOptions
                                                           )
 import           Data.Functor.Foldable                    ( Base
                                                           , cata
                                                           )
-import           Language.Pie.Symbols                     ( Symbol(..)
-                                                          , VarName(..)
+import           Language.Pie.Symbols                     ( Symbol(Symbol)
+                                                          , VarName
+                                                            ( VarName
+                                                            , Dimmed
+                                                            )
                                                           )
-import           Language.Pie.Expr                        ( Expr(..)
+import           Language.Pie.Expr                        ( Expr
                                                           , ExprF(..)
                                                           )
+
+-- for sigma and pi
+typePair :: (VarName, Doc a) -> Doc a
+typePair (x, y) = enclose lparen rparen (printVarName x <+> y)
 
 printVarName :: VarName -> Doc a
 printVarName (VarName v n) = pretty v <> if n == 0 then "" else pretty n
@@ -51,14 +68,17 @@ printPie = renderStrict . layoutPretty defaultLayoutOptions . cata printPie'
   printPie' (ConsF e1 e2      ) = printBinaryExpr "cons" e1 e2
   printPie' (CarF e1          ) = printUnaryExpr "car" e1
   printPie' (CdrF e1          ) = printUnaryExpr "cdr" e1
-  printPie' (ArrowF e1 e2     ) = printBinaryExpr "->" e1 e2
-  printPie' (LambdaF v e) =
-    printBinaryExpr "lambda" ("(" <> printVarName v <> ")") e
-  printPie' (PiF v e1 e2) =
-    printBinaryExpr "Pi" ("(" <> printVarName v <+> e1 <> ")") e2
-  printPie' (SigmaF v e1 e2) =
-    printBinaryExpr "Sigma" ("(" <> printVarName v <+> e1 <> ")") e2
-  printPie' (AppF e1 e2)         = "(" <> e1 <+> e2 <> ")"
+  printPie' (ArrowF  e1 e2    ) = printBinaryExpr "->" e1 e2
+  printPie' (LambdaF vs e     ) = printBinaryExpr
+    "lambda"
+    (encloseSep lparen rparen space $ printVarName <$> NonEmpty.toList vs)
+    e
+  printPie' (PiF vs e2) =
+    printBinaryExpr "Pi" (hsep (typePair <$> NonEmpty.toList vs)) e2
+  printPie' (SigmaF vs e2) =
+    printBinaryExpr "Sigma" (hsep (typePair <$> NonEmpty.toList vs)) e2
+  printPie' (AppF e es) =
+    encloseSep lparen rparen space (e : NonEmpty.toList es)
   printPie' NatF                 = "Nat"
   printPie' ZeroF                = "zero"
   printPie' (Add1F e1          ) = printUnaryExpr "add1" e1

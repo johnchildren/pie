@@ -1,0 +1,11 @@
+---
+
+version: 2.1
+orbs:
+  haskell: haskell-works/haskell-build@2.1.1
+workflows:
+  build-fuseline:
+    jobs:
+      - haskell/build:
+          executor: haskell/ghc-8_6_4
+          name: GHC 8.6.4

@@ -36,7 +36,8 @@ common warning-flags
                        -Wmissing-export-lists
                        -Wpartial-fields
                        -Wincomplete-patterns
-
+                       -Wmonomorphism-restriction
+                       -Wmissing-local-signatures
 
 library
   import:              haskell, dependencies, warning-flags

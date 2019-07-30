@@ -7,18 +7,28 @@ module Language.Pie.Judgement
   )
 where
 
-import           Prelude
 import           Control.Effect                           ( run )
 import           Control.Effect.Fresh                     ( runFresh )
 import           Control.Effect.Error                     ( runError )
 import           Control.Effect.Reader                    ( runReader )
-import           Language.Pie.TypeChecker                 ( TypeError(..)
+import           Data.Either                              ( Either(Right, Left)
+                                                          )
+import           Data.Eq                                  ( Eq((==)) )
+import           Data.Function                            ( ($)
+                                                          , (.)
+                                                          )
+import           Text.Show                                ( Show )
+import           Language.Pie.TypeChecker                 ( TypeError
+                                                            ( UnificationError
+                                                            , ReadBackError
+                                                            )
                                                           , Binding
                                                           , check
                                                           , convert
                                                           , val
                                                           )
 import           Language.Pie.Expr                        ( Expr(..)
+                                                          , CoreExpr
                                                           , toCore
                                                           )
 import           Language.Pie.Environment                 ( Env )
@@ -34,7 +44,8 @@ data Judgement = Yes
 -- ______ is a ______.
 judgement1 :: Env Binding -> Expr -> Expr -> Judgement
 judgement1 gamma e1 e2 =
-  let checked = run . runError . runFresh . runReader gamma $ do
+  let checked :: Either TypeError CoreExpr
+      checked = run . runError . runFresh . runReader gamma $ do
         t <- val (toCore e2)
         check (toCore e1) t
   in  case checked of
@@ -45,7 +56,8 @@ judgement1 gamma e1 e2 =
 -- ______ is the same ______ as ______.
 judgement2 :: Env Binding -> Expr -> Expr -> Expr -> Judgement
 judgement2 gamma e1 e2 e3 =
-  let converted = run . runError . runFresh . runReader gamma $ do
+  let converted :: Either TypeError (CoreExpr, CoreExpr)
+      converted = run . runError . runFresh . runReader gamma $ do
         t  <- val (toCore e2)
         v1 <- val (toCore e1)
         v2 <- val (toCore e3)

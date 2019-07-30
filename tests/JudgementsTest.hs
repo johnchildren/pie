@@ -4,6 +4,7 @@ module JudgementsTest
 where
 
 import           Prelude
+import           Data.List.NonEmpty                       ( NonEmpty(..) )
 import           Data.Text                                ( Text )
 import           Test.Tasty
 import           Test.Tasty.HUnit
@@ -48,7 +49,9 @@ test_judgements = testGroup
     , testCase "applies lambda expressions"
     $   judgement1
           Env.empty
-          (App (The (Arrow Atom Atom) (mkLambda "x" (mkVar "x"))) (mkAtom "foo"))
+          (App (The (Arrow Atom Atom) (mkLambda "x" (mkVar "x")))
+               (mkAtom "foo" :| [])
+          )
           Atom
     @?= Yes
     ]
@@ -76,7 +79,7 @@ test_judgements = testGroup
     @?= Yes
     , testCase "applies lambda expressions"
     $   judgement2 Env.empty
-                   (App (mkLambda "x" (mkVar "x")) (mkAtom "foo"))
+                   (App (mkLambda "x" (mkVar "x")) (mkAtom "foo" :| []))
                    Atom
                    (mkAtom "foo")
     @?= Yes
@@ -91,7 +94,7 @@ test_judgements = testGroup
     $   judgement3 Env.empty (Car (Pair Atom Atom))
     @?= Yes
     , testCase "applies lambda expressions"
-    $   judgement3 Env.empty (App (mkLambda "x" (mkVar "x")) Atom)
+    $   judgement3 Env.empty (App (mkLambda "x" (mkVar "x")) (Atom :| []))
     @?= Yes
     ]
   , testGroup
@@ -107,7 +110,7 @@ test_judgements = testGroup
     $   judgement4 Env.empty (Car (Pair Atom Atom)) Atom
     @?= Yes
     , testCase "applies lambda expressions"
-    $   judgement4 Env.empty (App (mkLambda "x" (mkVar "x")) Atom) Atom
+    $   judgement4 Env.empty (App (mkLambda "x" (mkVar "x")) (Atom :| [])) Atom
     @?= Yes
     ]
   ]
@@ -119,4 +122,4 @@ mkVar :: Text -> Expr
 mkVar = Var . flip VarName 0
 
 mkLambda :: Text -> Expr -> Expr
-mkLambda x = Lambda (VarName x 0)
+mkLambda x = Lambda (VarName x 0 :| [])

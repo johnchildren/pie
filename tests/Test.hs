@@ -23,4 +23,5 @@ tests = testGroup
   , test_judgements
   , test_laws
   , testProperty "parse print" hprop_parse_print_trip
+  , testProperty "to from core" hprop_to_from_core_trip
   ]

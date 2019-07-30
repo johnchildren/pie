@@ -10,7 +10,10 @@ module Language.Pie.Eval
   )
 where
 
-import           Prelude
+import           Control.Applicative                      ( pure
+                                                          , (<$>)
+                                                          , (<*>)
+                                                          )
 import           Control.Effect                           ( Carrier
                                                           , Member
                                                           )
@@ -21,23 +24,30 @@ import           Control.Effect.Reader                    ( Reader
 import           Control.Effect.Error                     ( Error
                                                           , throwError
                                                           )
-import           Control.Monad                            ( join )
+import           Control.Monad                            ( join
+                                                          , (>>=)
+                                                          , (=<<)
+                                                          )
+import           Data.Eq                                  ( Eq )
+import           Data.Function                            ( ($) )
 import           Data.Functor.Foldable                    ( Base
                                                           , cata
+                                                          )
+import           Data.Maybe                               ( Maybe(Just, Nothing)
                                                           )
 import           Language.Pie.Environment                 ( Env )
 import           Language.Pie.Expr                        ( Clos(..)
                                                           , CoreExpr(..)
                                                           , CoreExprF(..)
                                                           )
-
-import           Language.Pie.Symbols                     ( VarName(..) )
+import           Language.Pie.Symbols                     ( VarName )
 import qualified Language.Pie.Environment      as Env
 import           Language.Pie.Values                      ( Value(..)
                                                           , Neutral(..)
                                                           , Closure(..)
                                                           , Normal(..)
                                                           )
+import           Text.Show                                ( Show )
 
 type Algebra t a = Base t a -> a
 

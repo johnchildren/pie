@@ -3,7 +3,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Language.Pie.TypeChecker
   ( synth
@@ -38,7 +37,11 @@ import           Control.Effect.Reader                    ( Reader
                                                           , local
                                                           , runReader
                                                           )
-import           Language.Pie.Symbols                     ( VarName(..) )
+import           Language.Pie.Symbols                     ( VarName
+                                                            ( VarName
+                                                            , Dimmed
+                                                            )
+                                                          )
 import           Language.Pie.Environment                 ( Env )
 import qualified Language.Pie.Environment      as Env
 import           Language.Pie.Values                      ( Value(..)
@@ -256,8 +259,8 @@ alphaEquiv (CPi x a1 (Clos b1)) (CPi y a2 (Clos b2)) = do
     $ alphaEquiv b1 b2
     )
 -- NatSame-w-N1
--- TODO: check type of s1
-alphaEquiv (CWhichNat CZero (CThe bTy1 b1) s1) b2 = alphaEquiv b1 b2
+-- TODO: check type of _
+alphaEquiv (CWhichNat CZero (CThe _ b1) _) b2 = alphaEquiv b1 b2
 -- NatSame-w-N
 alphaEquiv (CWhichNat t1 (CThe bTy1 b1) (Clos s1)) (CWhichNat t2 (CThe bTy2 b2) (Clos s2))
   = liftA4 (\w x y z -> w && x && y && z)

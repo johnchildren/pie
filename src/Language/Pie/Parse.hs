@@ -2,19 +2,59 @@ module Language.Pie.Parse
   ( parsePie
   , parsePieStatement
   , errorBundlePretty
+  , reservedWords
   , Statement(..)
   , PieParseError
   )
 where
 
-import           Prelude
-import           Data.Void                                ( Void )
+import           Control.Applicative                      ( pure
+                                                          , (<$>)
+                                                          , (<$)
+                                                          , (<*>)
+                                                          , (*>)
+                                                          , (<*)
+                                                          )
+import           Control.Monad                            ( fail
+                                                          , (>>=)
+                                                          , (>>)
+                                                          )
+import           Data.Either                              ( Either )
+import           Data.Function                            ( flip
+                                                          , ($)
+                                                          , (.)
+                                                          )
+import           Data.List                                ( elem )
+import qualified Data.List.NonEmpty            as NonEmpty
+import           Data.Semigroup                           ( (<>) )
 import qualified Data.Text                     as Text
 import           Data.Text                                ( Text )
-import           Text.Megaparsec
-import           Text.Megaparsec.Char
-import           Language.Pie.Symbols                     ( Symbol(..)
-                                                          , VarName(..)
+import           Data.Tuple                               ( uncurry )
+import           Data.Void                                ( Void )
+import           Text.Megaparsec                          ( Parsec
+                                                          , ParseErrorBundle
+                                                          , between
+                                                          , eof
+                                                          , errorBundlePretty
+                                                          , many
+                                                          , notFollowedBy
+                                                          , parse
+                                                          , sepBy1
+                                                          , some
+                                                          , try
+                                                          , (<|>)
+                                                          )
+import           Text.Megaparsec.Char                     ( alphaNumChar
+                                                          , char
+                                                          , letterChar
+                                                          , numberChar
+                                                          , space1
+                                                          , string
+                                                          )
+import           Text.Read                                ( read )
+import           Text.Show                                ( show )
+import           Language.Pie.Symbols                     ( Symbol(Symbol)
+                                                          , VarName(VarName)
                                                           )
 import           Language.Pie.Expr                        ( Expr(..) )
 
@@ -35,8 +75,8 @@ symbol = do
   val <- some (letterChar <|> char '-')
   pure $ Symbol (Text.pack val)
 
-rws :: [String] -- list of reserved words
-rws =
+reservedWords :: [Text] -- list of reserved words
+reservedWords =
   [ "lambda"
   , "Pi"
   , "Sigma"
@@ -60,16 +100,19 @@ rws =
   , "define"
   ]
 
-identifier :: Parser String
+identifier :: Parser Text
 identifier = p >>= check
  where
-  p = (:) <$> letterChar <*> many alphaNumChar
-  check x = if x `elem` rws
-    then fail $ "keyword " ++ show x ++ " cannot be an identifier"
-    else return x
+  p :: Parser Text
+  p = Text.pack <$> ((:) <$> letterChar <*> many alphaNumChar)
+
+  check :: Text -> Parser Text
+  check x = if x `elem` reservedWords
+    then fail $ "keyword " <> show x <> " cannot be an identifier"
+    else pure x
 
 varNameParser :: Parser VarName
-varNameParser = flip VarName 0 . Text.pack <$> identifier
+varNameParser = flip VarName 0 <$> identifier
 
 mkUnaryExprParser :: Parser (Expr -> Expr) -> Parser Expr
 mkUnaryExprParser p = p <*> (space1 >> pieParser)
@@ -87,11 +130,14 @@ mkTernaryExprParser p =
 lambdaExprParser :: Parser Expr
 lambdaExprParser =
   (Lambda <$ rword "lambda")
-    <*> (space1 >> parens varNameParser)
+    <*> (space1 >> parens (NonEmpty.fromList <$> varNameParser `sepBy1` space1))
     <*> (space1 >> pieParser)
 
 appExprParser :: Parser Expr
-appExprParser = App <$> pieParser <*> (space1 >> pieParser)
+appExprParser =
+  App
+    <$> pieParser
+    <*> (space1 >> (NonEmpty.fromList <$> pieParser `sepBy1` space1))
 
 typeVarParser :: Parser (VarName, Expr)
 typeVarParser = parens $ do
@@ -100,24 +146,21 @@ typeVarParser = parens $ do
   ty <- pieParser
   pure (x, ty)
 
-spacedTypeVarParser :: Parser (VarName, Expr)
-spacedTypeVarParser = do
-  space1
-  pair <- typeVarParser
-  space1
-  pure pair
-
 piExprParser :: Parser Expr
 piExprParser = do
-  _       <- rword "Pi"
-  (x, ty) <- spacedTypeVarParser
-  Pi x ty <$> pieParser
+  _ <- rword "Pi"
+  space1
+  args <- NonEmpty.fromList <$> typeVarParser `sepBy1` space1
+  space1
+  Pi args <$> pieParser
 
 sigmaExprParser :: Parser Expr
 sigmaExprParser = do
-  _       <- rword "Sigma"
-  (x, ty) <- spacedTypeVarParser
-  Sigma x ty <$> pieParser
+  _ <- rword "Sigma"
+  space1
+  args <- NonEmpty.fromList <$> typeVarParser `sepBy1` space1
+  space1
+  Sigma args <$> pieParser
 
 -- Parse an expression in parenthesis (i.e one where application occurs)
 parensPieExprParser :: Parser Expr
@@ -161,7 +204,7 @@ claimParser = parens $ do
   name <- varNameParser
   space1
   expr <- pieParser
-  return (name, expr)
+  pure (name, expr)
 
 defineParser :: Parser (VarName, Expr)
 defineParser = parens $ do
@@ -170,7 +213,7 @@ defineParser = parens $ do
   name <- varNameParser
   space1
   expr <- pieParser
-  return (name, expr)
+  pure (name, expr)
 
 data Statement = Claim VarName Expr
                | Define VarName Expr
