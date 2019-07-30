@@ -2,7 +2,7 @@ cabal-version:       2.2
 name:                pie
 version:             0.1.0.0
 synopsis:            Pie interpreter
--- description:
+description:         An implementation of the pie language from the little typer
 license:             BSD-3-Clause
 license-file:        LICENSE
 author:              John Children
