@@ -65,11 +65,11 @@ genExprs = Gen.recursive
   ]
 
 hprop_parse_print_trip :: Property
-hprop_parse_print_trip = withTests 1000 . property $ do
+hprop_parse_print_trip = withTests 10000 . property $ do
   exprs <- forAll genExprs
   tripping exprs printPie parsePie
 
 hprop_to_from_core_trip :: Property
-hprop_to_from_core_trip = withTests 1000 . property $ do
+hprop_to_from_core_trip = withTests 10000 . property $ do
   exprs <- forAll genExprs
   toCore exprs === toCore (fromCore (toCore exprs))
