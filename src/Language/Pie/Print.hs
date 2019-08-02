@@ -17,7 +17,6 @@ import           Data.Text.Prettyprint.Doc                ( (<>)
                                                           , pretty
                                                           , enclose
                                                           , encloseSep
-                                                          , hsep
                                                           , lparen
                                                           , rparen
                                                           , space
@@ -37,6 +36,9 @@ import           Language.Pie.Expr                        ( Expr
                                                           , ExprF(..)
                                                           )
 
+parens :: [Doc a] -> Doc a
+parens = encloseSep lparen rparen space
+
 -- for sigma and pi
 typePair :: (VarName, Doc a) -> Doc a
 typePair (x, y) = enclose lparen rparen (printVarName x <+> y)
@@ -46,13 +48,13 @@ printVarName (VarName v n) = pretty v <> if n == 0 then "" else pretty n
 printVarName (Dimmed  v _) = "_" <> pretty v <> "_"
 
 printUnaryExpr :: Doc a -> Doc a -> Doc a
-printUnaryExpr tok e1 = "(" <> tok <+> e1 <> ")"
+printUnaryExpr tok e1 = parens [tok, e1]
 
 printBinaryExpr :: Doc a -> Doc a -> Doc a -> Doc a
-printBinaryExpr tok e1 e2 = "(" <> tok <+> e1 <+> e2 <> ")"
+printBinaryExpr tok e1 e2 = parens [tok, e1, e2]
 
 printTernaryExpr :: Doc a -> Doc a -> Doc a -> Doc a -> Doc a
-printTernaryExpr tok e1 e2 e3 = "(" <> tok <+> e1 <+> e2 <+> e3 <> ")"
+printTernaryExpr tok e1 e2 e3 = parens [tok, e1, e2, e3]
 
 type Algebra t a = Base t a -> a
 
@@ -68,17 +70,14 @@ printPie = renderStrict . layoutPretty defaultLayoutOptions . cata printPie'
   printPie' (ConsF e1 e2      ) = printBinaryExpr "cons" e1 e2
   printPie' (CarF e1          ) = printUnaryExpr "car" e1
   printPie' (CdrF e1          ) = printUnaryExpr "cdr" e1
-  printPie' (ArrowF  e1 e2    ) = printBinaryExpr "->" e1 e2
-  printPie' (LambdaF vs e     ) = printBinaryExpr
-    "lambda"
-    (encloseSep lparen rparen space $ printVarName <$> NonEmpty.toList vs)
-    e
+  printPie' (ArrowF e1 e2     ) = printBinaryExpr "->" e1 e2
+  printPie' (LambdaF vs e) =
+    printBinaryExpr "lambda" (parens $ printVarName <$> NonEmpty.toList vs) e
   printPie' (PiF vs e2) =
-    printBinaryExpr "Pi" (hsep (typePair <$> NonEmpty.toList vs)) e2
+    printBinaryExpr "Pi" (parens [(parens (typePair <$> NonEmpty.toList vs))]) e2
   printPie' (SigmaF vs e2) =
-    printBinaryExpr "Sigma" (hsep (typePair <$> NonEmpty.toList vs)) e2
-  printPie' (AppF e es) =
-    encloseSep lparen rparen space (e : NonEmpty.toList es)
+    printBinaryExpr "Sigma" (parens [(parens (typePair <$> NonEmpty.toList vs))]) e2
+  printPie' (AppF e es)          = parens (e : NonEmpty.toList es)
   printPie' NatF                 = "Nat"
   printPie' ZeroF                = "zero"
   printPie' (Add1F e1          ) = printUnaryExpr "add1" e1

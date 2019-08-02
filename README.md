@@ -22,7 +22,7 @@ The `pie-repl` build target provides a binary that can be used as a pie repl. Th
 
 ```
 Welcome to pie! Each line will be evaluated as an expr!
-pie> (claim twin (Pi (Y Universe) (-> Y (Pair Y Y))))
+pie> (claim twin (Pi ((Y Universe)) (-> Y (Pair Y Y))))
 claimed
 pie> (define twin (lambda (Y) (lambda (x) (cons x x))))
 defined

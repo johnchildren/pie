@@ -150,7 +150,7 @@ piExprParser :: Parser Expr
 piExprParser = do
   _ <- rword "Pi"
   space1
-  args <- NonEmpty.fromList <$> typeVarParser `sepBy1` space1
+  args <- parens $ NonEmpty.fromList <$> typeVarParser `sepBy1` space1
   space1
   Pi args <$> pieParser
 
@@ -158,7 +158,7 @@ sigmaExprParser :: Parser Expr
 sigmaExprParser = do
   _ <- rword "Sigma"
   space1
-  args <- NonEmpty.fromList <$> typeVarParser `sepBy1` space1
+  args <- parens $ NonEmpty.fromList <$> typeVarParser `sepBy1` space1
   space1
   Sigma args <$> pieParser
 
