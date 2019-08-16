@@ -1,87 +1,87 @@
-cabal-version:       2.2
-name:                pie
-version:             0.1.0.0
-synopsis:            Pie interpreter
-description:         An implementation of the pie language from the little typer
-license:             BSD-3-Clause
-license-file:        LICENSE
-author:              John Children
-maintainer:          john.a.children@gmail.com
--- copyright:
-category:            Language
-build-type:          Simple
-extra-source-files:  ChangeLog.md
+cabal-version:      2.4
+name:               pie
+version:            0.1.0.0
+synopsis:           Pie interpreter
+description:        An implementation of the pie language from the little typer
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             John Children
+maintainer:         john.a.children@gmail.com
 
+-- copyright:
+category:           Language
+build-type:         Simple
+extra-source-files: ChangeLog.md
 
 source-repository head
   type:     git
   location: https://github.com/johnchildren/pie
 
 common haskell
-  default-language:     Haskell2010
-  default-extensions:   OverloadedStrings
-                        NoImplicitPrelude
-
+  default-language:   Haskell2010
+  default-extensions:
+    NoImplicitPrelude
+    OverloadedStrings
 
 common dependencies
-  build-depends:       base                   >= 4.9  && < 5.0
-                     , text                   >= 1.2  && < 1.3
-                     , transformers           >= 0.5  && < 0.6
-                     , fused-effects          >= 0.4  && < 0.6
-
+  build-depends:
+    , base           >=4.9 && <5.0
+    , fused-effects  >=0.4 && <0.6
+    , text           ^>=1.2
+    , transformers   ^>=0.5
 
 common warning-flags
-  ghc-options:         -Wall
-                       -Wincomplete-uni-patterns
-                       -Wincomplete-record-updates
-                       -Wcompat
-                       -Widentities
-                       -Wredundant-constraints
-                       -Wmissing-export-lists
-                       -Wpartial-fields
-                       -Wincomplete-patterns
-                       -Wmonomorphism-restriction
-                       -Wmissing-local-signatures
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-export-lists -Wpartial-fields -Wincomplete-patterns
+    -Wmonomorphism-restriction -Wmissing-local-signatures
 
 library
-  import:              haskell, dependencies, warning-flags
-  hs-source-dirs:      src
-  exposed-modules:     Language.Pie.Environment
-                     , Language.Pie.Eval
-                     , Language.Pie.Expr
-                     , Language.Pie.Interpreter
-                     , Language.Pie.Judgement
-                     , Language.Pie.Parse
-                     , Language.Pie.Print
-                     , Language.Pie.Symbols
-                     , Language.Pie.TypeChecker
-                     , Language.Pie.Values
-  build-depends:       containers             >= 0.6  && < 0.7
-                     , megaparsec             >= 7.0  && < 8.0
-                     , prettyprinter          >= 1.2  && < 1.3
-                     , recursion-schemes      >= 5.1  && < 5.2
+  import:          haskell, dependencies, warning-flags
+  hs-source-dirs:  src
+  exposed-modules:
+    Language.Pie.Environment
+    Language.Pie.Eval
+    Language.Pie.Expr
+    Language.Pie.Interpreter
+    Language.Pie.Judgement
+    Language.Pie.Parse
+    Language.Pie.Print
+    Language.Pie.Symbols
+    Language.Pie.TypeChecker
+    Language.Pie.Values
 
+  build-depends:
+    , containers                   ^>=0.6
+    , megaparsec                   >=7.0 && <8.0
+    , prettyprinter                ^>=1.2
+    , prettyprinter-ansi-terminal  ^>=1.1
+    , recursion-schemes            ^>=5.1
 
 executable pie-repl
-  import:              haskell, dependencies, warning-flags
-  main-is:             Main.hs
-  build-depends:       repline                >= 0.2  && < 0.3
-                     , haskeline              >= 0.7  && < 0.8
-                     , pie
-
+  import:        haskell, dependencies, warning-flags
+  main-is:       Main.hs
+  build-depends:
+    , haskeline  ^>=0.7
+    , pie
+    , repline    ^>=0.2
 
 test-suite test
-  import:              haskell, dependencies, warning-flags
-  type:                exitcode-stdio-1.0
-  hs-source-dirs:      tests
-  main-is:             Test.hs
-  build-depends:       hedgehog               >= 1.0  && < 2.0
-                     , tasty                  >= 1.2  && < 2.0
-                     , tasty-hedgehog         >= 1.0  && < 2.0
-                     , tasty-hunit            >= 0.10  && < 0.11
-                     , pie
-  other-modules:       JudgementsTest
-                       CommandmentsTest
-                       LawsTest
-                       ParsePrintTest
-                       EvalTest
+  import:         haskell, dependencies, warning-flags
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: tests
+  main-is:        Test.hs
+  build-depends:
+    , hedgehog        >=1.0  && <2.0
+    , pie
+    , tasty           >=1.2  && <2.0
+    , tasty-hedgehog  >=1.0  && <2.0
+    , tasty-hunit     ^>=0.10
+
+  other-modules:
+    CommandmentsTest
+    EvalTest
+    JudgementsTest
+    LawsTest
+    ParsePrintTest
