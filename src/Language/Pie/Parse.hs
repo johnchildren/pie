@@ -178,7 +178,7 @@ parensPieExprParser =
     <|> mkBinaryExprParser (Arrow <$ rword "->")
     <|> mkUnaryExprParser (List <$ rword "List")
     <|> mkBinaryExprParser (ListExp <$ rword "::")
-    <|> lambdaExprParser
+    <|> try lambdaExprParser
     <|> try piExprParser
     <|> try sigmaExprParser
     -- other application
