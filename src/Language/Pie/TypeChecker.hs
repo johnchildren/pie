@@ -141,8 +141,11 @@ readBackNorm (NormThe typ expr) = readBackNorm' typ expr
   readBackNorm' VUniverse VAtom      = pure CAtom
   readBackNorm' VUniverse (VList xs) =
     CList <$> readBackNorm (NormThe VUniverse xs)
-  readBackNorm' VUniverse (VSigma a b)    = readBackSigmaPi CSigma a b
-  readBackNorm' VUniverse (VPi    a b)    = readBackSigmaPi CPi a b
+  readBackNorm' VUniverse (VSigma a b) = readBackSigmaPi CSigma a b
+  readBackNorm' VUniverse (VPi    a b) = readBackSigmaPi CPi a b
+  readBackNorm' (VList _) VNil         = pure CNil
+  readBackNorm' l@(VList lTy) (VListExp x xs) =
+    CListExp <$> readBackNorm' lTy x <*> readBackNorm' l xs
   readBackNorm' VUniverse VUniverse       = pure CUniverse -- TODO: Not true
   readBackNorm' _         (VNeutral _ ne) = readBackNeutral ne
   readBackNorm' t         v               = throwError $ ReadBackError t v
@@ -161,6 +164,9 @@ readBackSigmaPi constructor a b = do
   bExpr   <- local (\g -> extendCtx g y a)
     $ readBackNorm (NormThe VUniverse closVal)
   pure $ constructor y aExpr (Clos bExpr)
+
+--readBackListBody :: Value -> Value -> m CoreExpr
+--readBackListBody x xs = CListExp (readBackNorm x)
 
 
 readBackNeutral
@@ -268,6 +274,10 @@ alphaEquiv (CWhichNat t1 (CThe bTy1 b1) (Clos s1)) (CWhichNat t2 (CThe bTy2 b2) 
            (alphaEquiv bTy1 bTy2)
            (alphaEquiv b1 b2)
            (alphaEquiv s1 s2)
+-- NatSame-w-N2
+-- TODO: check types of b and s
+alphaEquiv (CWhichNat (CAdd1 n1) (CThe bTy b) (Clos s1)) (CApp s2 n2) =
+  liftA2 (&&) (alphaEquiv n1 n2) (alphaEquiv s1 s2)
 alphaEquiv (CList x) (CList y) = alphaEquiv x y
 alphaEquiv (CListExp x xs) (CListExp y ys) =
   liftA2 (&&) (alphaEquiv x y) (alphaEquiv xs ys)
